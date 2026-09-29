@@ -53,9 +53,9 @@ fictional rewards.
 The live canvas replaces the game's orange sky with a quiet neutral background
 similar to the App's default surfaces. It switches between light and dark
 colors with `prefers-color-scheme` while the room's decorative day/night
-lighting continues independently. The canvas SDK does not currently expose
-the App's selected theme or custom background tokens, so an in-App theme
-override that differs from the browser preference may not be reflected.
+lighting continues independently. The renderer does not consume the App's
+mirrored theme tokens, so an in-App theme override that differs from the
+browser preference may not be reflected.
 Each worker has a stable, generated display name. Its card shows the owning
 session's SDK display title when available (which may differ from the host
 App's sidebar name). Long SDK names are omitted rather than exposing what
@@ -69,17 +69,24 @@ links are not available: the canvas SDK supplies session IDs but no App URL
 or host navigation action, so the office cannot safely synthesize a link.
 Names are cosmetic and do not rename App sessions.
 
-The project extension loads in **game-labs sessions that contain this branch**.
+The project extension loads in sessions that contain this repository's extension;
+it can also be installed from its repository folder into another project or a
+user's extension directory.
 It listens to SDK events from each attached session: turn start/end, generic
 tool categories, assistant-message arrival, idle/error, and subagent
 start/finish. The feed records up to eight **metadata-only** signals, including
 "Assistant replied"; it does not copy the assistant's response text. Each participating
 extension process writes a sanitized heartbeat into
-`$COPILOT_HOME/extensions/agent-inc-live/artifacts/game-labs/` (or
-`~/.copilot/extensions/...`). The canvas serves an SSE feed over an ephemeral
+`$COPILOT_HOME/extensions/agent-inc-live/artifacts/<project-key>/` (or
+`~/.copilot/extensions/...`). The project key is a hash of the SDK's repository
+host and slug, independent of its branch or worktree. If the SDK lacks a slug,
+a local GitHub origin supplies the same identity; other local Git worktrees
+use their shared Git common directory, and a non-Git folder uses its canonical
+path. Remote sessions without repository identity cannot join a room. The
+canvas serves an SSE feed over an ephemeral
 `127.0.0.1` port and shows recent participants in one office. Heartbeats
-older than 35 seconds disappear. Raw prompts, tool arguments/results, filenames,
-repository contents, and raw event payloads are not written or sent to the
+older than 35 seconds disappear. Prompt and output bodies, tool arguments/results,
+filenames, repository contents, and raw event payloads are not copied to the
 page. The short SDK display title is the only potentially prompt-derived
 metadata shown when available. This local experiment does not establish the
 App's parent/child session relationships or expose navigation and controls:
@@ -99,32 +106,41 @@ counts reach this canvas; model names and file paths from the SDK never enter
 the shared heartbeat or browser response. If the API is unavailable, the
 panel reports that explicitly instead of presenting a zero.
 
-## Sharing
+## Install
 
-This extension is project-scoped and currently runs only with this repository's
-layout. It reads `agent-inc/app/styles.css` outside its own folder and shares
-local activity through a `game-labs` directory. Installing only the extension
-folder elsewhere, or sharing it as a standalone gist, will not work. Before
-offering a one-folder install, bundle that stylesheet into the extension,
-separate activity by project, add a `copilot-extension.json` manifest, and
-publish a versioned repository folder or gist. Inside this repository, no
-separate installation is needed: the project extension is discovered on
-branches that contain it.
+Use the Copilot app's extension installer with this
+[GitHub repository-folder URL](https://github.com/BranonConor/agentcorp/tree/main/.github/extensions/agent-inc-live).
+Install to user scope to enable it in sessions across your local repositories,
+or to project scope for one checkout. The folder contains the manifest,
+entry point, HTML, JavaScript bundle, both stylesheets, and state helpers;
+it does not need `agent-inc/`, `agent-inc-live/`, `node_modules`, or a dev
+server at runtime. This repository's project extension is discovered
+automatically on branches containing it. Reload extensions after installing.
 
 ## Local test
 
-1. The committed `office.bundle.js` is ready to run. To rebuild after editing
-   either the client or the shared game scene, run `cd agent-inc-live && npm ci
-   && npm run build && npm run typecheck && npm test`. The bundle uses React and Three.js
-   only at build time; the extension needs no running Next.js dev server.
-2. From the repo root, run `node --test .github/extensions/agent-inc-live/state.test.mjs`
-   and `node --check .github/extensions/agent-inc-live/extension.mjs`.
-3. In the App, reload extensions, inspect `agent-inc-live` if it fails to load,
+1. The committed `office.bundle.js` and `styles.css` are ready to run. From the
+   repo root, rebuild and check after editing the client, shared game scene,
+   or stylesheet:
+
+   ```sh
+   npm ci --prefix agent-inc-live
+   npm run build --prefix agent-inc-live
+   npm run typecheck --prefix agent-inc-live
+   npm test --prefix agent-inc-live
+   node --check .github/extensions/agent-inc-live/extension.mjs
+   ```
+
+   The build copies `agent-inc/app/styles.css` byte-for-byte and bundles React
+   and Three.js at build time; commit the rebuilt assets with source changes.
+   Tests cover the sanitized state, project isolation, asset equivalence,
+   room layout, and original game simulation.
+2. In the App, reload extensions, inspect `agent-inc-live` if it fails to load,
    then open the **agentcorp** canvas. The agent can call
    `get_status` to inspect the same sanitized snapshot shown in the panel.
-4. Run a tool and a subagent in this session; the session's desk and helper
+3. Run a tool and a subagent in this session; the session's desk and helper
    should update, then return to idle. For a second desk, open another
-   game-labs session containing this extension, reload extensions there,
+   session in the same repository with this extension, reload extensions there,
    and run a tool. Both sessions must share the same local `COPILOT_HOME`.
 
 If a browser has no EventSource support or the loopback server disconnects,
@@ -132,7 +148,7 @@ the panel reports the interruption rather than inventing activity. Reloading
 the extension reopens the canvas on a fresh loopback URL. The original
 `agent-inc/` game and its port 3100 preview remain independent.
 
-The SDK's canvas API is experimental. A full daily-chat office spanning
-unrelated repos or remote hosts needs an opt-in user-wide installation and a
-supported cross-session/host feed; installing this project-scoped extension
-alone cannot provide that.
+The SDK's canvas API is experimental. Even when installed user-wide, rooms stay
+project-isolated: unrelated repos and remote hosts cannot share live activity
+through this local heartbeat directory. Spanning hosts would require a
+separate, supported cross-host feed.

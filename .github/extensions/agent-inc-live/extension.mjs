@@ -2,20 +2,21 @@ import { createHash } from "node:crypto";
 import { createServer } from "node:http";
 import { readFile, readdir, mkdir, rename, unlink, writeFile } from "node:fs/promises";
 import { homedir } from "node:os";
-import { dirname, join, resolve } from "node:path";
+import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { createCanvas, joinSession } from "@github/copilot-sdk/extension";
+import { projectRoomKey } from "./project.mjs";
 import {
   applyEvent, createState, isPublicSnapshot, normalizeTitle, publicSnapshot, selectRoom, summarizeUsageMetrics,
 } from "./state.mjs";
 
 const assets = dirname(fileURLToPath(import.meta.url));
-const gameStyles = resolve(assets, "../../../agent-inc/app/styles.css");
-const room = join(process.env.COPILOT_HOME || join(homedir(), ".copilot"),
-  "extensions", "agent-inc-live", "artifacts", "game-labs");
+const storage = join(process.env.COPILOT_HOME || join(homedir(), ".copilot"),
+  "extensions", "agent-inc-live", "artifacts");
 const servers = new Map();
 let session;
 let state;
+let room;
 let file;
 let writing = Promise.resolve();
 let usageError;
@@ -68,6 +69,7 @@ async function startServer(instanceId) {
   let expectedHost;
   const files = {
     "/": ["office.html", "text/html; charset=utf-8"],
+    "/styles.css": ["styles.css", "text/css; charset=utf-8"],
     "/live.css": ["live.css", "text/css; charset=utf-8"],
     "/office.bundle.js": ["office.bundle.js", "text/javascript; charset=utf-8"],
   };
@@ -97,9 +99,6 @@ async function startServer(instanceId) {
         res.write(`data: ${JSON.stringify(await readRoom())}\n\n`);
         clients.add(res);
         req.on("close", () => clients.delete(res));
-      } else if (path === "/styles.css") {
-        res.setHeader("Content-Type", "text/css; charset=utf-8");
-        res.end(await readFile(gameStyles));
       } else if (files[path]) {
         const [name, type] = files[path];
         res.setHeader("Content-Type", type);
@@ -170,6 +169,7 @@ session = await joinSession({
   })],
 });
 
+room = join(storage, await projectRoomKey(await session.rpc.metadata.snapshot()));
 state = createState(session.sessionId);
 async function refreshTitle() {
   const { name } = await session.rpc.name.get();

@@ -1,10 +1,11 @@
 import { build } from "esbuild";
-import { readFile, writeFile } from "node:fs/promises";
+import { copyFile, readFile, writeFile } from "node:fs/promises";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
 const root = dirname(fileURLToPath(import.meta.url));
-const outfile = resolve(root, "../.github/extensions/agent-inc-live/office.bundle.js");
+const extension = resolve(root, "../.github/extensions/agent-inc-live");
+const outfile = resolve(extension, "office.bundle.js");
 await build({
   entryPoints: [resolve(root, "src/office.tsx")],
   outfile,
@@ -18,3 +19,4 @@ await build({
 });
 const bundle = await readFile(outfile, "utf8");
 await writeFile(outfile, bundle.replace(/[ \t]+$/gm, ""));
+await copyFile(resolve(root, "../agent-inc/app/styles.css"), resolve(extension, "styles.css"));

@@ -19,3 +19,20 @@ test("the shipped scene stylesheet exactly matches its source", async () => {
     await readFile(new URL("../agent-inc/app/styles.css", import.meta.url)),
   );
 });
+
+test("the installed bundle includes exact MIT notices for its dependencies", async () => {
+  const notices = await readFile(new URL("THIRD_PARTY_NOTICES.txt", extension), "utf8");
+  const names = ["react", "react-dom", "scheduler", "three"];
+  const entries = [...notices.matchAll(/^(\S+) v(\S+) \(MIT\)$/gm)].map((match) =>
+    [match[1], match[2]]);
+  const expected = [];
+  for (const name of names) {
+    const directory = new URL(`node_modules/${name}/`, import.meta.url);
+    const pkg = JSON.parse(await readFile(new URL("package.json", directory), "utf8"));
+    const license = (await readFile(new URL("LICENSE", directory), "utf8")).trimEnd();
+    expected.push([pkg.name, pkg.version]);
+    assert(notices.includes(`${pkg.name} v${pkg.version} (MIT)\n\n${license}`));
+  }
+  assert.deepEqual(entries, expected);
+  assert.match(notices, /not to agentcorp's own code/);
+});

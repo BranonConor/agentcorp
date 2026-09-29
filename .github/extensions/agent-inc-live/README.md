@@ -112,8 +112,10 @@ Use the Copilot app's extension installer with this
 [GitHub repository-folder URL](https://github.com/BranonConor/agentcorp/tree/main/.github/extensions/agent-inc-live).
 Install to user scope to enable it in sessions across your local repositories,
 or to project scope for one checkout. The folder contains the manifest,
-entry point, HTML, JavaScript bundle, both stylesheets, and state helpers;
-it does not need `agent-inc/`, `agent-inc-live/`, `node_modules`, or a dev
+entry point, HTML, JavaScript bundle, both stylesheets, state helpers, and
+`THIRD_PARTY_NOTICES.txt` for the bundled dependencies. The notices do not
+license agentcorp's own code. The extension does not need `agent-inc/`,
+`agent-inc-live/`, `node_modules`, or a dev
 server at runtime. This repository's project extension is discovered
 automatically on branches containing it. Reload extensions after installing.
 
@@ -131,10 +133,12 @@ automatically on branches containing it. Reload extensions after installing.
    node --check .github/extensions/agent-inc-live/extension.mjs
    ```
 
-   The build copies `agent-inc/app/styles.css` byte-for-byte and bundles React
-   and Three.js at build time; commit the rebuilt assets with source changes.
-   Tests cover the sanitized state, project isolation, asset equivalence,
-   room layout, and original game simulation.
+   The build copies `agent-inc/app/styles.css` byte-for-byte; bundles React,
+   React DOM, Scheduler, and Three.js; and generates third-party notices from
+   each bundled package's MIT license. Commit the rebuilt assets with source
+   changes. Tests cover
+   sanitized state, project isolation, asset and notice equivalence, room
+   layout, and original game simulation.
 2. In the App, reload extensions, inspect `agent-inc-live` if it fails to load,
    then open the **agentcorp** canvas. The agent can call
    `get_status` to inspect the same sanitized snapshot shown in the panel.

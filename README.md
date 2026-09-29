@@ -27,9 +27,11 @@ npm test --prefix agent-inc-live
 node --check .github/extensions/agent-inc-live/extension.mjs
 ```
 
-The build bundles React, Three.js, and the shared game scene into
-`office.bundle.js` and copies the scene stylesheet into `styles.css` inside
-the installable folder. Commit both generated assets with source changes.
+The build bundles React, React DOM, Scheduler, Three.js, and the shared game
+scene into `office.bundle.js` and copies the scene stylesheet into `styles.css` inside
+the installable folder. It also generates `THIRD_PARTY_NOTICES.txt` from the
+licenses of the bundled dependencies; these notices do not license the
+project's own code. Commit all generated assets with source changes.
 
 The office writes only sanitized activity heartbeats under
 `$COPILOT_HOME/extensions/agent-inc-live/artifacts/` (default `~/.copilot`),

@@ -8,6 +8,7 @@ const extension = resolve(root, "../.github/extensions/agent-inc-live");
 const outfile = resolve(extension, "office.bundle.js");
 const result = await build({
   entryPoints: [resolve(root, "src/office.tsx")],
+  absWorkingDir: root,
   outfile,
   nodePaths: [resolve(root, "node_modules")],
   bundle: true,

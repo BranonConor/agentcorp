@@ -10,10 +10,14 @@ neither a dev server nor `node_modules` is needed to run the built extension.
 
 In the Copilot app, install the
 [agent-inc-live repository folder](https://github.com/BranonConor/agentcorp/tree/main/.github/extensions/agent-inc-live)
-by URL. Choose user scope to use the office in other repositories, or project
-scope to enable it only in one checkout. After installation, reload extensions
-and open the **agentcorp** canvas. Copies of this folder alone include all
-runtime assets; no source files from the rest of this repository are required.
+by URL, or pin the
+[v0.1.0 release](https://github.com/BranonConor/agentcorp/tree/v0.1.0/.github/extensions/agent-inc-live).
+Choose user scope to use the office in other repositories, or project scope to
+enable it in one checkout. After installation, reload extensions and open the
+**agentcorp** canvas. An existing project extension named `agent-inc-live`
+takes precedence over a user-scope installation; try this release in a project
+without that older copy. Copies of this folder alone include all runtime
+assets; no source files from the rest of this repository are required.
 
 ## Build and test
 

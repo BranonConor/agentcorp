@@ -1,15 +1,14 @@
-# agentcorp live office experiment
+# agentcorp live office
 
-This is a separate, read-only Copilot canvas extension. It does not alter the
-playable game in `agent-inc/` or require its Next.js server. Its client lives in
-`agent-inc-live/` and bundles the **same** `agent-inc/game/world.ts`,
-`sprite-art.ts`, lighting and original `agent-inc/app/styles.css`. The scene,
-pixel sprites, camera controls, and time-of-day preview stay shared with the
-game. The live HUD places the lighting clock, then connection status, inline with
-the pixel-lettered logo; the Activity panel shows real Copilot status in a
-compact overlay. Opening Activity replaces the top-right summary without
-covering the whole office. Escape or the close button unfocuses the worker and
-returns to the summary.
+This is a read-only Copilot canvas extension. Its client lives in
+`agent-inc-live/` and bundles the migrated scene source in
+`agent-inc/game/` and the stylesheet in `agent-inc/app/styles.css`.
+The installed extension does not need that source, a playable game, or a dev
+server. The live HUD places the lighting clock, then connection status, inline
+with the pixel-lettered logo; the Activity panel shows real Copilot status in
+a compact overlay. Opening Activity replaces the top-right summary without
+covering the whole office. Escape or the close button unfocuses the worker
+and returns to the summary.
 
 The canvas has no token economy or upgrades: its Activity panel summarizes
 the attached session's lifetime usage and combines worker status, owning
@@ -33,10 +32,9 @@ drifts from its cups, desk mugs, and the cups carried by idle workers; motion
 stops when the canvas is hidden and rests when reduced motion is requested.
 An original glowing pixel-smiley and hand-drawn pixel letters tie the HUD to
 the **AGENTCORP** neon sign, with matching purple lettering. The live view
-allows a closer zoom than the playable game. The floor lamps cast warm light
+allows a closer zoom. The floor lamps cast warm light
 onto nearby surfaces, and the pixel monsteras have broad split leaves
-with larger cutouts. Only the live office uses
-this decor and branding; the playable game retains its own room and name.
+with larger cutouts.
 Additional desks appear beyond eight and disappear as workers leave, down
 to eight visible desks. The room accommodates up to 16; extra workers remain
 in the roster with a waiting-for-desk label. Notification bubbles use recognizable thinking, terminal, checks, search,
@@ -44,13 +42,11 @@ editing, delegation, general work, and attention icons based on the same
 sanitized categories as the Activity panel, never raw tool data. A brief tool
 action remains identifiable for up to five seconds after it finishes, even
 if it completes between feed updates. The charcoal wall has warm sconce
-wash that becomes more visible as the decorative room lighting dims. The
-original game's layout is unchanged, though it shares the more defined
-shadows, smooth idle motion, and monstera art.
+wash that becomes more visible as the decorative room lighting dims.
 The scene adapter moves actors around the dividers between the coffee counter
-and desks without running the game's `Simulation.update()` or generating
+and desks without running `Simulation.update()` or generating
 fictional rewards.
-The live canvas replaces the game's orange sky with a quiet neutral background
+The live canvas uses a quiet neutral background
 similar to the App's default surfaces. It switches between light and dark
 colors with `prefers-color-scheme` while the room's decorative day/night
 lighting continues independently. The renderer does not consume the App's
@@ -109,7 +105,9 @@ panel reports that explicitly instead of presenting a zero.
 ## Install
 
 Use the Copilot app's extension installer with this
-[GitHub repository-folder URL](https://github.com/BranonConor/agentcorp/tree/main/.github/extensions/agent-inc-live).
+[GitHub repository-folder URL](https://github.com/BranonConor/agentcorp/tree/main/.github/extensions/agent-inc-live),
+or pin the
+[v0.1.0 release](https://github.com/BranonConor/agentcorp/tree/v0.1.0/.github/extensions/agent-inc-live).
 Install to user scope to enable it in sessions across your local repositories,
 or to project scope for one checkout. The folder contains the manifest,
 entry point, HTML, JavaScript bundle, both stylesheets, state helpers, and
@@ -118,6 +116,9 @@ license agentcorp's own code. The extension does not need `agent-inc/`,
 `agent-inc-live/`, `node_modules`, or a dev
 server at runtime. This repository's project extension is discovered
 automatically on branches containing it. Reload extensions after installing.
+If another project already has an extension named `agent-inc-live`, that
+project copy shadows a user-scope installation; try the new release in a
+project without the older extension.
 
 ## Local test
 
@@ -149,8 +150,8 @@ automatically on branches containing it. Reload extensions after installing.
 
 If a browser has no EventSource support or the loopback server disconnects,
 the panel reports the interruption rather than inventing activity. Reloading
-the extension reopens the canvas on a fresh loopback URL. The original
-`agent-inc/` game and its port 3100 preview remain independent.
+the extension reopens the canvas on a fresh loopback URL. No game preview
+server is needed.
 
 The SDK's canvas API is experimental. Even when installed user-wide, rooms stay
 project-isolated: unrelated repos and remote hosts cannot share live activity

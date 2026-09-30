@@ -18,11 +18,19 @@ in my user scope, then open the AgentCorp · Live sessions canvas.
 
 The repo-folder URL is the input to the app's `install_extension` flow;
 installing from a repo folder copies the portable package into that device's
-Copilot extensions. Reinstall from the same URL to update an existing install
-when `main` changes. The GitHub repository must be accessible to the
-device/account, and the Copilot app must support extension canvases. Do not
-copy `agentcorp-extension/` as the install folder: it holds build sources, not
-the packaged `extension.mjs` and viewer.
+Copilot extensions. The installer will not overwrite an existing copy. To
+update a user-scope install when `main` changes, remove it through the app's
+extension management or move `$COPILOT_HOME/extensions/agentcorp-extension/`
+outside the `extensions/` directory as a backup. Disabling it without removing
+the folder does not free the install path. Reinstall from the same URL, then
+reload extensions if they were not reloaded automatically. Keep
+`$COPILOT_HOME/agentcorp-observer/artifacts/` intact: it holds local office data
+outside the installed package. `$COPILOT_HOME` defaults to `~/.copilot`.
+
+The GitHub repository must be accessible to the device/account, and the
+Copilot app must support extension canvases. Do not copy `agentcorp-extension/`
+as the install folder: it holds build sources, not the packaged `extension.mjs`
+and viewer.
 
 Both project and user copies can launch here. When both are installed, the user
 copy owns the canvas; without it, the project copy serves the canvas. Renamed

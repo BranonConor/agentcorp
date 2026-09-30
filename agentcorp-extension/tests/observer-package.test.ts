@@ -17,6 +17,9 @@ const { heartbeat } = await import(pathToFileURL(join(installed, "observations.m
 test("standalone extension folder serves only packaged observer assets and scoped status", async () => {
   const manifest = JSON.parse(await readFile(join(installed, "copilot-extension.json"), "utf8"));
   assert.equal(manifest.name, "agentcorp-extension");
+  for (const notice of ["LICENSE", "THIRD_PARTY_NOTICES.txt"]) {
+    assert.ok((await readFile(join(installed, notice), "utf8")).length > 0);
+  }
   const entry = await readFile(join(installed, "extension.mjs"), "utf8");
   assert.doesNotMatch(entry, /\.\.\/\.\.\/\.\.\/dist/);
   assert.match(entry, /shouldRegister/);

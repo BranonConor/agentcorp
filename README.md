@@ -1,5 +1,7 @@
 # agentcorp
 
+![Isometric pixel-art AgentCorp office with desk wings, sofas, plants, and a coffee counter](assets/agentcorp-office.png)
+
 A cozy, read-only 3D office for local Copilot CLI sessions. The installable
 extension lives in [`.github/extensions/agentcorp-extension`](.github/extensions/agentcorp-extension);
 its viewer is bundled there and needs no Vite server or build on the device
@@ -11,14 +13,14 @@ In the Copilot app on each device, ask:
 
 ```text
 Install the agentcorp-extension from
-https://github.com/BranonConor/agentcorp/tree/branonconor-agentcorp-extension-migration/.github/extensions/agentcorp-extension
+https://github.com/BranonConor/agentcorp/tree/main/.github/extensions/agentcorp-extension
 in my user scope, then open the AgentCorp · Live sessions canvas.
 ```
 
 The repo-folder URL is the input to the app's `install_extension` flow;
 installing from a repo folder copies the portable package into that device's
 Copilot extensions. Reinstall from the same URL to update an existing install
-when this branch changes. The GitHub repository must be accessible to the
+when `main` changes. The GitHub repository must be accessible to the
 device/account, and the Copilot app must support extension canvases. Do not
 copy `agentcorp-extension/` as the install folder: it holds build sources, not
 the packaged `extension.mjs` and viewer.

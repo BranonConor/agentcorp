@@ -56,7 +56,7 @@ const session = await joinSession({
   })] : [],
 });
 
-if (!active) console.error("AgentCorp project observer inactive: user-scope observer is installed and owns this canvas.");
+if (!active) console.error("AgentCorp observer inactive: legacy user-scope observer owns this canvas.");
 const id = validId(session.sessionId);
 function publish(next) {
   phase = next;

@@ -11,19 +11,20 @@ const folder = await mkdtemp(join(tmpdir(), "agentcorp-portable-"));
 const installed = join(folder, "extensions", "agentcorp-extension");
 await cp(source, installed, { recursive: true });
 process.env.COPILOT_HOME = folder;
+const { shouldRegister } = await import(pathToFileURL(join(installed, "provider-selection.mjs")).href);
 const { startServer } = await import(pathToFileURL(join(installed, "viewer-server.mjs")).href);
 const { heartbeat } = await import(pathToFileURL(join(installed, "observations.mjs")).href);
 
 test("standalone extension folder serves only packaged observer assets and scoped status", async () => {
   const manifest = JSON.parse(await readFile(join(installed, "copilot-extension.json"), "utf8"));
   assert.equal(manifest.name, "agentcorp-extension");
+  assert.equal(await shouldRegister(pathToFileURL(join(installed, "extension.mjs")).href, folder), true);
   for (const notice of ["LICENSE", "THIRD_PARTY_NOTICES.txt"]) {
     assert.ok((await readFile(join(installed, notice), "utf8")).length > 0);
   }
   const entry = await readFile(join(installed, "extension.mjs"), "utf8");
   assert.doesNotMatch(entry, /\.\.\/\.\.\/\.\.\/dist/);
   assert.match(entry, /shouldRegister/);
-  await readFile(join(installed, "provider-selection.mjs"));
   const { server, url } = await startServer("root");
   try {
     const response = await fetch(url);

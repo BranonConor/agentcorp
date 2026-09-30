@@ -17,8 +17,9 @@ export async function startServer(root) {
       if (request.method !== "GET") { response.writeHead(405); response.end(); return; }
       const path = new URL(request.url ?? "/", `http://127.0.0.1:${address.port}`).pathname;
       if (path === "/api/observations") {
+        const observation = await snapshot(root);
         response.writeHead(200, { "Content-Type": "application/json", "Cache-Control": "no-store" });
-        response.end(JSON.stringify(await snapshot(root)));
+        response.end(JSON.stringify(observation));
         return;
       }
       const target = resolve(viewer, `.${path === "/" ? "/observe.html" : path}`);

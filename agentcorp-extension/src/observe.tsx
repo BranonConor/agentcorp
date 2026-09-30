@@ -10,9 +10,9 @@ import { AGENTCORP_LETTERS, AGENTCORP_MARK, AGENTCORP_WORDMARK } from "../game/s
 import { createWorld } from "../game/world";
 import { agentName } from "./room";
 
-type Phase = "idle" | "thinking" | "tool" | "blocked" | "offline";
-type Member = { id: string; phase: Phase; present: boolean };
-type Observation = { root: string; sessions: Member[] };
+type Phase = "idle" | "thinking" | "tool" | "blocked";
+type Member = { id: string; phase: Phase; present: true };
+type Observation = { root: string; sessions: Member[]; overflow: number };
 const desks = [...DESKS, ...EXTRA_DESKS];
 const coffee = COFFEE_SPOTS.map(({ x }) => ({ x, z: LIVE_COFFEE_Z + 0.75 }));
 const STEP = 1 / 30;
@@ -30,22 +30,15 @@ function newAgent(id: number): Agent {
 function updateScene(scene: Simulation, members: Member[], occupied: boolean[]) {
   const count = Math.min(members.length, MAX_LIVE_DESKS);
   while (scene.agents.length < count) scene.agents.push(newAgent(scene.agents.length));
+  scene.agents.length = count;
+  occupied.fill(false, count);
   scene.progress.capacity = count;
   scene.requests = [];
   const lounge = assignLoungeSpots(members.slice(MIN_LIVE_DESKS, count).map(member => member.phase === "idle"));
   for (let index = 0; index < count; index++) {
     const member = members[index];
     const sprite = scene.agents[index];
-    if (!member.present) {
-      occupied[index] = false;
-      sprite.x = sprite.z = 100;
-      sprite.target = { x: 100, z: 100 };
-      sprite.route = [];
-      sprite.taskId = undefined;
-      sprite.state = "idle";
-      continue;
-    }
-    const busy = member.phase !== "idle" && member.phase !== "offline";
+    const busy = member.phase !== "idle";
     const destination = busy ? desks[index] : index < MIN_LIVE_DESKS ? coffee[index] : lounge[index - MIN_LIVE_DESKS];
     if (!destination) throw new Error(`Missing office destination for desk ${index + 1}`);
     if (!occupied[index]) { sprite.x = destination.x; sprite.z = destination.z; }
@@ -161,14 +154,14 @@ function Office() {
       world.current = createWorld(host.current, scene, "live", {
         onAgentHover(index) {
           if (selectedRef.current) {
-            const focused = members.current.findIndex(member => member.id === selectedRef.current && member.present);
+            const focused = members.current.findIndex(member => member.id === selectedRef.current);
             index = focused < 0 ? null : focused;
           }
           if (hoverIndex.current === index) return;
           hoverIndex.current = index;
           const member = index === null ? undefined : members.current[index];
           const point = index === null ? null : world.current?.projectAgent(index);
-          setHover(member?.present && point ? { name: agentName(member.id), ...point } : null);
+          setHover(member && point ? { name: agentName(member.id), ...point } : null);
         },
         noticeActivityForStation(index) {
           const member = members.current[index];
@@ -178,7 +171,7 @@ function Office() {
         },
         onAgentSelect(index) {
           const member = members.current[index];
-          if (member?.present) {
+          if (member) {
             selectedRef.current = member.id;
             setSelected(member.id);
             setPanelOpen(true);
@@ -196,7 +189,8 @@ function Office() {
         const response = await fetch("/api/observations", { cache: "no-store" });
         if (!response.ok) throw new Error(`Office returned ${response.status}`);
         const next = await response.json() as Observation;
-        if (!Array.isArray(next.sessions)) throw new Error("Invalid office snapshot");
+        if (!Array.isArray(next.sessions) || next.sessions.length > MAX_LIVE_DESKS ||
+          !Number.isSafeInteger(next.overflow) || next.overflow < 0) throw new Error("Invalid office snapshot");
         if (!active) return;
         members.current = next.sessions;
         world.current?.capturePositions();
@@ -204,7 +198,7 @@ function Office() {
         next.sessions.forEach((_, index) => world.current?.setAgentPersona(index, index % 4));
         setState(next);
         setError("");
-        const index = next.sessions.findIndex(member => member.id === selectedRef.current && member.present);
+        const index = next.sessions.findIndex(member => member.id === selectedRef.current);
         world.current?.focusAgent(index >= 0 ? index : null);
         if (index < 0) { selectedRef.current = ""; setSelected(""); }
       } catch (cause) {
@@ -248,15 +242,16 @@ function Office() {
     };
   }, []);
   const sessions = state?.sessions ?? [];
-  const live = sessions.filter(member => member.present).length;
-  const working = sessions.filter(member => member.present && (member.phase === "thinking" || member.phase === "tool")).length;
-  const idle = sessions.filter(member => member.present && member.phase === "idle").length;
-  const blocked = sessions.filter(member => member.present && member.phase === "blocked").length;
-  const offline = sessions.length - live;
+  const live = sessions.length;
+  const working = sessions.filter(member => member.phase === "thinking" || member.phase === "tool").length;
+  const idle = sessions.filter(member => member.phase === "idle").length;
+  const blocked = sessions.filter(member => member.phase === "blocked").length;
+  const overflow = state?.overflow ?? 0;
+  const moreLabel = `${overflow} more session${overflow === 1 ? "" : "s"}`;
   const visualError = error || sceneError || themeError;
-  const connected = !error && state !== null && sessions[0]?.present === true;
-  const statusKind = visualError ? "error" : !state ? "connecting" : connected ? "online" : "offline";
-  const statusLabel = visualError ? "Error" : !state ? "Connecting" : connected ? "Live" : "Offline";
+  const connected = !error && state !== null;
+  const statusKind = visualError ? "error" : !state || !live ? "connecting" : "online";
+  const statusLabel = visualError ? "Error" : !state ? "Connecting" : live ? "Live" : "No sessions";
   const daylight = sampleDaylight(0, previewOffset);
   return <main className={`shell live-shell observer-shell ${panelOpen ? "activity-visible" : ""}`}>
     <header className="topbar">
@@ -289,7 +284,7 @@ function Office() {
         </div>
       </div>
       <div className="top-stats" aria-hidden={panelOpen} inert={panelOpen}>
-        <span className="observer-count">{live} observed</span>
+        <span className="observer-count">{live} observed{overflow > 0 && ` · ${moreLabel}`}</span>
         <button type="button" className="system-toggle" aria-expanded={panelOpen} aria-controls="system-panel"
           aria-label={`Manage agents${blocked ? `: ${blocked} need attention` : ""}`}
           onClick={() => setPanelOpen(true)}>Manage agents
@@ -309,8 +304,9 @@ function Office() {
               <span className="sdk-status-dot" aria-hidden="true" /> {statusLabel}
             </button>
             <span className="callout-separator" aria-hidden="true" />
-            <span>{visualError || (!state ? "Connecting to this session…" :
-              `${working} working · ${idle} idle${blocked ? ` · ${blocked} need attention` : ""}${offline ? ` · ${offline} offline` : ""}`)}</span>
+            <span>{visualError || (!state ? "Connecting to local sessions…" : !live ?
+              "No recent local AgentCorp heartbeats." :
+              `${working} working · ${idle} idle${blocked ? ` · ${blocked} need attention` : ""}${overflow ? ` · ${moreLabel} not shown` : ""}`)}</span>
           </div>
         </div>
       </section>
@@ -328,12 +324,11 @@ function Office() {
           <section className="activity-view overview-list" aria-label="Office overview status">
             <div className="activity-row activity-row-first">
               <div className="activity-row-heading"><strong>Connection</strong>
-                <span className={`activity-tag ${connected ? "activity-tag-live" : "activity-tag-warning"}`}>
-                  {connected ? "Connected" : "Needs attention"}</span></div>
+                <span className={`activity-tag ${connected ? "activity-tag-live" : error ? "activity-tag-warning" : ""}`}>
+                  {error ? "Needs attention" : !state ? "Connecting" : "Connected"}</span></div>
               {error && <p role="alert">{error}</p>}
               <div className="activity-chips"><span>{working} active</span><span>{idle} idle</span>
-                <span className={blocked ? "attention" : ""}>{blocked} need attention</span>
-                {offline > 0 && <span>{offline} offline</span>}</div>
+                <span className={blocked ? "attention" : ""}>{blocked} need attention</span></div>
             </div>
             {sceneError && <div className="activity-row">
               <div className="activity-row-heading"><strong>3D scene</strong>
@@ -347,34 +342,35 @@ function Office() {
             </div>}
             <div className="activity-row">
               <div className="activity-row-heading"><strong>Observed agents</strong>
-                <span className="activity-tag">{sessions.length} enrolled</span></div>
+                <span className="activity-tag">{sessions.length} shown</span></div>
+              {overflow > 0 && <p>{moreLabel} not shown (16-desk limit).</p>}
               {sessions.length ? <div className="activity-list">
                 {sessions.map((member, index) => <div key={member.id}
                   className={`activity-worker-row ${selected === member.id ? "worker-selected" : ""}`}>
                   <span className="worker-avatar" aria-hidden="true">{agentName(member.id).split(" ").map(part => part[0]).join("")}</span>
                   <div className="activity-worker-info">
                     <div className="activity-worker-title"><strong>{agentName(member.id)}</strong></div>
-                    <p className="activity-worker-meta">{index === 0 ? "This session · root" : `Enrolled descendant · desk ${index + 1}`}</p>
-                    {!member.present && <p className="activity-current">No recent heartbeat from this session. Must have gone home for the day.</p>}
+                    <p className="activity-worker-meta">{member.id === state?.root ? "This session" : "Local session"} · desk {index + 1}</p>
                   </div>
                   <div className="observer-worker-actions">
                     <span className={`activity-tag status-${member.phase}`}>{member.phase}</span>
-                    {member.present && <button type="button" className="focus-button"
+                    <button type="button" className="focus-button"
                       aria-label={`Focus ${agentName(member.id)}`}
                       aria-pressed={selected === member.id}
                       onClick={() => {
                         selectedRef.current = member.id;
                         setSelected(member.id);
                         world.current?.focusAgent(index);
-                      }}>Focus</button>}
+                      }}>Focus</button>
                   </div>
                 </div>)}
-              </div> : <p className="activity-empty">Waiting for this session's activity.</p>}
+              </div> : <p className="activity-empty">{!state ? "Finding local sessions…" :
+                "No recent local heartbeats. Sessions appear when they run the AgentCorp extension; resume or reload older sessions to start publishing."}</p>}
             </div>
             <div className="activity-row">
               <div className="activity-row-heading"><strong>Local observation</strong>
                 <span className="activity-tag">Read only</span></div>
-              <p>Sessions are linked explicitly, not discovered from repository or branch. App-created children require the root's add_descendant canvas action. Missing or expired heartbeats show offline, not guessed activity.</p>
+              <p>Fresh heartbeats from this Copilot home appear automatically across repositories and unrelated sessions. Only session IDs and activity phases are shared, never prompts, code, or titles. Offline sessions are hidden; missing heartbeats expire after 45 seconds.</p>
             </div>
           </section>
         </div>

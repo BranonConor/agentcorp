@@ -1,25 +1,43 @@
 # agentcorp
 
-A silly, cozy 3D office for real local Copilot agents.
-Watch their desks light up and see who's at the coffee counter.
-It's read-only: a little window into work, not a way to manage it.
+A cozy, read-only 3D office for local Copilot CLI sessions. The installable
+extension lives in [`.github/extensions/agentcorp-extension`](.github/extensions/agentcorp-extension);
+its viewer is bundled there and needs no Vite server or build on the device
+where you install it.
 
-## Move in
+## Install on this or another device
 
-Paste this into a Copilot app chat:
+In the Copilot app on each device, ask:
 
 ```text
-Install the agent-inc-live extension from
-https://github.com/BranonConor/agentcorp/tree/v0.1.0/.github/extensions/agent-inc-live
-in my user scope, then open the agentcorp canvas.
+Install the agentcorp-extension from
+https://github.com/BranonConor/agentcorp/tree/branonconor-agentcorp-extension-migration/.github/extensions/agentcorp-extension
+in my user scope, then open the AgentCorp · Live sessions canvas.
 ```
 
-Only local Copilot sessions running this extension in the same project
-share a room; snapshots omit prompt, code, and output bodies, though
-short SDK session titles may be prompt-derived.
+The repo-folder URL is the input to the app's `install_extension` flow;
+installing from a repo folder copies the portable package into that device's
+Copilot extensions. Reinstall from the same URL to update an existing install
+when this branch changes. The GitHub repository must be accessible to the
+device/account, and the Copilot app must support extension canvases. Do not
+copy `agentcorp-extension/` as the install folder: it holds build sources, not
+the packaged `extension.mjs` and viewer.
 
-If a project already includes `agent-inc-live`, it shadows your user
-install; try another repository.
+The project copy shadows a user copy with the same `agentcorp-extension` name.
+If the older `agentcorp-observer-viewer` user install is still present, it
+continues to own the canvas until you remove it through the app's extension
+management; the new copy stays inactive to avoid duplicate providers. Do not
+remove the old install during an active session unless you intend to switch.
 
-For builders and curious office visitors, see the
-[extension guide](.github/extensions/agent-inc-live/README.md).
+Only this session and explicitly enrolled App-created descendants appear;
+`add_descendant` enrolls known child session IDs, not all repository sessions
+or subagents. At most 16 desks are shown. Missing/expired heartbeats go offline
+after 45 seconds. Activity is a small phase-only snapshot (idle, thinking,
+tool, blocked, offline), not prompts, code, output, session titles, or
+cross-device activity. Storage is local to the device's `COPILOT_HOME`, in
+`agentcorp-observer/artifacts` outside the installed extension folder; older
+`extensions/agentcorp-observer/artifacts` records are copied on demand and
+left intact. Installing/reinstalling does not require writing into a live
+extension folder for heartbeat updates.
+
+For the viewer build and tests, see [the source guide](agentcorp-extension/README.md).

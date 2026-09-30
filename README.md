@@ -4,11 +4,11 @@
 
 ## Bring your agents to life. 
 
-A cozy office for local Copilot session agents. :)
+A cozy office for local Copilot session agents. :) Understand your fleet of agents in a silly new way. 
 
 ## Install on this or another device
 
-In the Copilot app on each device, ask:
+In a `github copilot app` session of choice, slap this prompt in:
 
 ```text
 Install the agentcorp-extension from

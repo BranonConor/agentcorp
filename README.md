@@ -24,7 +24,9 @@ device/account, and the Copilot app must support extension canvases. Do not
 copy `agentcorp-extension/` as the install folder: it holds build sources, not
 the packaged `extension.mjs` and viewer.
 
-The project copy shadows a user copy with the same `agentcorp-extension` name.
+Both project and user copies can launch here. When both are installed, the user
+copy owns the canvas; without it, the project copy serves the canvas. Renamed
+copies also defer to the canonical user install to avoid duplicate providers.
 If the older `agentcorp-observer-viewer` user install is still present, it
 continues to own the canvas until you remove it through the app's extension
 management; the new copy stays inactive to avoid duplicate providers. Do not

@@ -1,6 +1,6 @@
 import { randomUUID } from "node:crypto";
-import { CanvasError, createCanvas, joinSession } from "@github/copilot-sdk/extension";
-import { clearHeartbeat, enroll, heartbeat, snapshot, validId } from "./observations.mjs";
+import { createCanvas, joinSession } from "@github/copilot-sdk/extension";
+import { clearHeartbeat, heartbeat, validId } from "./observations.mjs";
 import { shouldRegister } from "./provider-selection.mjs";
 import { startServer } from "./viewer-server.mjs";
 
@@ -8,7 +8,6 @@ const owner = randomUUID();
 const servers = new Map();
 let phase = "idle";
 let writing = Promise.resolve();
-let enrolling = Promise.resolve();
 let stopped = false;
 let timer;
 const active = await shouldRegister(import.meta.url);
@@ -17,27 +16,7 @@ const session = await joinSession({
   canvases: active ? [createCanvas({
     id: "agentcorp-observer",
     displayName: "AgentCorp · Live sessions",
-    description: "Read-only 3D office for this Copilot CLI session and explicitly enrolled descendants.",
-    actions: [{
-      name: "add_descendant",
-      description: "Enroll a known App-created child session under this canvas root or an already enrolled parent; never infer kinship from repository or branch.",
-      inputSchema: {
-        type: "object", additionalProperties: false, required: ["sessionId"],
-        properties: { sessionId: { type: "string" }, parentSessionId: { type: "string" } },
-      },
-      handler: async ({ sessionId, input }) => {
-        try {
-          const child = validId(input.sessionId);
-          const parent = input.parentSessionId === undefined ? sessionId : validId(input.parentSessionId);
-          const next = enrolling.then(() => enroll(sessionId, parent, child));
-          enrolling = next.catch(() => {});
-          await next;
-          return await snapshot(sessionId);
-        } catch (error) {
-          throw new CanvasError("enrollment_failed", error instanceof Error ? error.message : String(error));
-        }
-      },
-    }],
+    description: "Read-only 3D office for fresh local AgentCorp heartbeat producers.",
     open: async ({ instanceId, sessionId }) => {
       let entry = servers.get(instanceId);
       if (!entry) {

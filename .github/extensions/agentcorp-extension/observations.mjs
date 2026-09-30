@@ -1,4 +1,4 @@
-import { link, mkdir, readFile, rename, rm, writeFile } from "node:fs/promises";
+import { mkdir, readFile, readdir, rename, rm, writeFile } from "node:fs/promises";
 import { randomUUID } from "node:crypto";
 import { homedir } from "node:os";
 import { join } from "node:path";
@@ -6,10 +6,12 @@ import { join } from "node:path";
 export const MAX_DESKS = 16;
 export const EXPIRY_MS = 45_000;
 const idPattern = /^[a-zA-Z0-9][a-zA-Z0-9_-]{0,127}$/;
-const phases = new Set(["idle", "thinking", "tool", "blocked", "offline"]);
+const priority = { blocked: 0, tool: 1, thinking: 2, idle: 3 };
+const phases = new Set([...Object.keys(priority), "offline"]);
+const heartbeatPrefix = "heartbeat-";
+const heartbeatSuffix = ".json";
 const home = process.env.COPILOT_HOME || join(homedir(), ".copilot");
 export const dataDir = join(home, "agentcorp-observer", "artifacts");
-const legacyDir = join(home, "extensions", "agentcorp-observer", "artifacts");
 
 export function validId(id) {
   if (typeof id !== "string" || !idPattern.test(id)) throw new Error("Invalid session ID.");
@@ -20,7 +22,7 @@ async function readJson(path) {
   try {
     return JSON.parse(await readFile(path, "utf8"));
   } catch (error) {
-    if (error?.code === "ENOENT") return null;
+    if (error?.code === "ENOENT") return undefined;
     throw error;
   }
 }
@@ -37,77 +39,56 @@ async function save(path, value) {
   }
 }
 
-async function readMigrated(path, legacyPath) {
-  const current = await readJson(path);
-  if (current !== null) return current;
-  const legacy = await readJson(legacyPath);
-  if (legacy === null) return null;
-  await mkdir(dataDir, { recursive: true, mode: 0o700 });
-  const temp = `${path}.${randomUUID()}.tmp`;
-  try {
-    await writeFile(temp, JSON.stringify(legacy), { mode: 0o600, flag: "wx" });
-    try {
-      await link(temp, path);
-    } catch (error) {
-      if (error?.code !== "EEXIST") throw error;
-    }
-  } finally {
-    await rm(temp, { force: true });
-  }
-  return readJson(path);
-}
-
-const heartbeatPath = id => join(dataDir, `heartbeat-${validId(id)}.json`);
-const graphPath = id => join(dataDir, `root-${validId(id)}.json`);
-const legacyHeartbeatPath = id => join(legacyDir, `heartbeat-${validId(id)}.json`);
-const legacyGraphPath = id => join(legacyDir, `root-${validId(id)}.json`);
+const heartbeatPath = id => join(dataDir, `${heartbeatPrefix}${validId(id)}${heartbeatSuffix}`);
 
 export async function heartbeat(id, phase, owner, now = Date.now()) {
   validId(id);
   if (!phases.has(phase)) throw new Error("Invalid phase.");
+  if (typeof owner !== "string" || !owner) throw new Error("Invalid heartbeat owner.");
+  if (!Number.isSafeInteger(now) || now < 0) throw new Error("Invalid heartbeat time.");
   await save(heartbeatPath(id), { id, phase, owner, at: now });
 }
 
 export async function clearHeartbeat(id, owner) {
   const path = heartbeatPath(id);
-  const entry = await readMigrated(path, legacyHeartbeatPath(id));
+  const entry = await readJson(path);
   if (entry?.owner !== owner) return;
-  if (await readJson(legacyHeartbeatPath(id)) !== null) {
-    await save(path, { ...entry, phase: "offline", at: Date.now() });
-  } else {
-    await rm(path, { force: true });
-  }
-}
-
-export async function enroll(root, parent, child) {
-  validId(root);
-  validId(parent);
-  validId(child);
-  if (child === root || child === parent) throw new Error("A session cannot enroll itself.");
-  const path = graphPath(root);
-  const graph = await readMigrated(path, legacyGraphPath(root));
-  if (graph !== null && (graph.root !== root || !Array.isArray(graph.links))) throw new Error("Invalid office membership record.");
-  const links = graph?.links ?? [];
-  if (parent !== root && !links.some(link => link.child === parent)) throw new Error("Parent must already be enrolled in this office.");
-  if (links.some(link => link.child === child)) throw new Error("Session is already enrolled in this office.");
-  if (links.length >= MAX_DESKS - 1) throw new Error("Office is full (16 desks).");
-  await save(path, { root, links: [...links, { parent, child }] });
+  await rm(path, { force: true });
 }
 
 export async function snapshot(root, now = Date.now()) {
   validId(root);
-  const graph = await readMigrated(graphPath(root), legacyGraphPath(root));
-  if (graph !== null && (graph.root !== root || !Array.isArray(graph.links))) throw new Error("Invalid office membership record.");
-  const ids = [root];
-  for (const link of graph?.links ?? []) {
-    if (ids.length >= MAX_DESKS) break;
-    if (ids.includes(link.parent) && !ids.includes(link.child) && idPattern.test(link.child)) ids.push(link.child);
+  let files;
+  try {
+    files = await readdir(dataDir, { withFileTypes: true });
+  } catch (error) {
+    if (error?.code !== "ENOENT") throw error;
+    files = [];
   }
-  const entries = await Promise.all(ids.map(async id => {
-    const entry = await readMigrated(heartbeatPath(id), legacyHeartbeatPath(id));
-    const live = entry?.id === id && entry.phase !== "offline" && phases.has(entry.phase) && Number.isFinite(entry.at) &&
-      entry.at <= now && now - entry.at <= EXPIRY_MS;
-    return { id, phase: live ? entry.phase : "offline", present: !!live };
-  }));
-  return { root, sessions: entries };
+  const sessions = [];
+  for (const file of files) {
+    if (!file.isFile() || !file.name.startsWith(heartbeatPrefix) || !file.name.endsWith(heartbeatSuffix)) continue;
+    const id = file.name.slice(heartbeatPrefix.length, -heartbeatSuffix.length);
+    if (!idPattern.test(id)) continue;
+    let entry;
+    try {
+      entry = await readJson(join(dataDir, file.name));
+    } catch (error) {
+      if (!(error instanceof SyntaxError)) throw error;
+      console.error(`AgentCorp skipped malformed heartbeat ${file.name}.`);
+      continue;
+    }
+    if (entry === undefined || entry?.phase === "offline") continue;
+    if (!entry || entry.id !== id || typeof entry.owner !== "string" || !entry.owner ||
+      typeof entry.phase !== "string" || !Object.hasOwn(priority, entry.phase) ||
+      !Number.isSafeInteger(entry.at) || entry.at < 0) {
+      console.error(`AgentCorp skipped invalid heartbeat ${file.name}.`);
+      continue;
+    }
+    if (entry.at > now || now - entry.at > EXPIRY_MS) continue;
+    sessions.push({ id, phase: entry.phase, present: true });
+  }
+  sessions.sort((a, b) => priority[a.phase] - priority[b.phase] ||
+    (a.id < b.id ? -1 : a.id > b.id ? 1 : 0));
+  return { root, sessions: sessions.slice(0, MAX_DESKS), overflow: Math.max(0, sessions.length - MAX_DESKS) };
 }

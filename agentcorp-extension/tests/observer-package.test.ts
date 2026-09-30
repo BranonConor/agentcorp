@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import { request } from "node:http";
-import { cp, mkdtemp, readFile, readdir, rm } from "node:fs/promises";
+import { cp, mkdtemp, readFile, readdir, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import { pathToFileURL } from "node:url";
@@ -13,9 +13,9 @@ await cp(source, installed, { recursive: true });
 process.env.COPILOT_HOME = folder;
 const { shouldRegister } = await import(pathToFileURL(join(installed, "provider-selection.mjs")).href);
 const { startServer } = await import(pathToFileURL(join(installed, "viewer-server.mjs")).href);
-const { heartbeat } = await import(pathToFileURL(join(installed, "observations.mjs")).href);
+const { heartbeat, dataDir } = await import(pathToFileURL(join(installed, "observations.mjs")).href);
 
-test("standalone extension folder serves only packaged observer assets and scoped status", async () => {
+test("standalone extension folder serves only packaged assets and sanitized local status", async () => {
   const manifest = JSON.parse(await readFile(join(installed, "copilot-extension.json"), "utf8"));
   assert.equal(manifest.name, "agentcorp-extension");
   assert.equal(await shouldRegister(pathToFileURL(join(installed, "extension.mjs")).href, folder), true);
@@ -24,6 +24,7 @@ test("standalone extension folder serves only packaged observer assets and scope
   }
   const entry = await readFile(join(installed, "extension.mjs"), "utf8");
   assert.doesNotMatch(entry, /\.\.\/\.\.\/\.\.\/dist/);
+  assert.doesNotMatch(entry, /add_descendant/);
   assert.match(entry, /shouldRegister/);
   const { server, url } = await startServer("root");
   try {
@@ -42,7 +43,7 @@ test("standalone extension folder serves only packaged observer assets and scope
     const assets = await readdir(join(installed, "viewer", "assets"));
     assert.deepEqual(assets.sort(), references.map(path => path.split("/").at(-1)!).sort());
     const state = await (await fetch(new URL("/api/observations", url))).json();
-    assert.deepEqual(state, { root: "root", sessions: [{ id: "root", phase: "offline", present: false }] });
+    assert.deepEqual(state, { root: "root", sessions: [], overflow: 0 });
     assert.equal((await fetch(new URL("/index.html", url))).status, 404);
     assert.equal((await fetch(new URL("/../package.json", url))).status, 404);
     assert.equal((await fetch(url, { method: "POST" })).status, 405);
@@ -56,11 +57,21 @@ test("standalone extension folder serves only packaged observer assets and scope
     });
     assert.equal(wrongHostStatus, 403);
     const packageFiles = await readdir(installed);
+    await heartbeat("before-root", "idle", "private-owner");
     await heartbeat("root", "tool", "test-owner");
+    await writeFile(join(dataDir, "heartbeat-extra.json"), JSON.stringify({
+      id: "extra", phase: "thinking", owner: "private-extra-owner", at: Date.now(),
+      prompt: "private-prompt", code: "private-code", title: "private-title",
+    }));
     const live = await (await fetch(new URL("/api/observations", url))).json();
-    assert.deepEqual(live, { root: "root", sessions: [{ id: "root", phase: "tool", present: true }] });
+    assert.deepEqual(live, { root: "root", sessions: [
+      { id: "root", phase: "tool", present: true },
+      { id: "extra", phase: "thinking", present: true },
+      { id: "before-root", phase: "idle", present: true },
+    ], overflow: 0 });
+    assert.doesNotMatch(JSON.stringify(live), /private-|test-owner/);
     assert.deepEqual(await readdir(installed), packageFiles);
-    assert.equal((await readdir(join(folder, "agentcorp-observer", "artifacts"))).length, 1);
+    assert.equal((await readdir(dataDir)).length, 3);
   } finally {
     await new Promise<void>((done, reject) => server.close((error?: Error) => error ? reject(error) : done()));
   }

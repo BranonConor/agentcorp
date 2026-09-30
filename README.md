@@ -40,15 +40,23 @@ continues to own the canvas until you remove it through the app's extension
 management; the new copy stays inactive to avoid duplicate providers. Do not
 remove the old install during an active session unless you intend to switch.
 
-Only this session and explicitly enrolled App-created descendants appear;
-`add_descendant` enrolls known child session IDs, not all repository sessions
-or subagents. At most 16 desks are shown. Missing/expired heartbeats go offline
-after 45 seconds. Activity is a small phase-only snapshot (idle, thinking,
-tool, blocked, offline), not prompts, code, output, session titles, or
-cross-device activity. Storage is local to the device's `COPILOT_HOME`, in
-`agentcorp-observer/artifacts` outside the installed extension folder; older
-`extensions/agentcorp-observer/artifacts` records are copied on demand and
-left intact. Installing/reinstalling does not require writing into a live
-extension folder for heartbeat updates.
+Every fresh AgentCorp heartbeat under the same local `COPILOT_HOME` appears
+automatically in every office, including sessions opened earlier or outside
+this repo or an App parent/child tree. No enrollment is needed. A session must
+have loaded the extension and be publishing to appear; resume or reload older
+sessions that have not started a producer. This does not observe subagents
+without their own producer or activity on other devices.
+
+At most 16 sessions are shown. Blocked, tool, and thinking activity take
+priority over idle sessions, with a stable session-ID order within each phase;
+the office's own session is not guaranteed a desk. Additional fresh sessions
+are counted as "more sessions," not rendered as individual agents. Offline
+heartbeats are hidden, cleanly stopped sessions disappear, and unrefreshed
+heartbeats expire after 45 seconds. Observations include only session IDs and
+phases (idle, thinking, tool, blocked), not prompts, code, output, or session
+titles. Storage stays local to the device's `COPILOT_HOME`, in
+`agentcorp-observer/artifacts` outside the installed extension folder.
+Older membership records and `extensions/agentcorp-observer/artifacts` files
+are left intact but are not used for live discovery.
 
 For the viewer build and tests, see [the source guide](agentcorp-extension/README.md).

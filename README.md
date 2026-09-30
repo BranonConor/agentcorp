@@ -53,10 +53,21 @@ the office's own session is not guaranteed a desk. Additional fresh sessions
 are counted as "more sessions," not rendered as individual agents. Offline
 heartbeats are hidden, cleanly stopped sessions disappear, and unrefreshed
 heartbeats expire after 45 seconds. Observations include only session IDs and
-phases (idle, thinking, tool, blocked), not prompts, code, output, or session
-titles. Storage stays local to the device's `COPILOT_HOME`, in
+phases (idle, thinking, tool, blocked), not prompts, code, output, session
+titles, or task summaries. The office uses a session/desk subtitle rather
+than guessing a current task from private content. Generated agent names label
+the office, not the Copilot app's session menu. Storage stays local to the
+device's `COPILOT_HOME`, in
 `agentcorp-observer/artifacts` outside the installed extension folder.
 Older membership records and `extensions/agentcorp-observer/artifacts` files
 are left intact but are not used for live discovery.
+
+Click an agent in the office or select its full Observed agents row to focus
+the camera. Rows work with Enter and Space; selecting the same row again
+clears focus. Dragging or scrolling the camera, pressing Escape, closing
+Overview, or losing the observed session also clears focus. A selected agent
+keeps its identity and desk through activity changes; the office does not
+automatically tour agents. Camera movement is eased unless reduced motion is
+preferred.
 
 For the viewer build and tests, see [the source guide](agentcorp-extension/README.md).

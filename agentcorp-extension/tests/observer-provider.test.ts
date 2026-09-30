@@ -24,6 +24,28 @@ test("project installation stays active when it shadows a same-name user install
   }
 });
 
+test("renamed project, user, and session copies yield to the canonical user provider", async () => {
+  const home = await mkdtemp(join(tmpdir(), "observer-provider-"));
+  const canonicalPath = join(home, "extensions", "agentcorp-extension", "extension.mjs");
+  const aliases = [
+    join(home, "project", ".github", "extensions", "renamed-project-observer", "extension.mjs"),
+    join(home, "extensions", "renamed-user-observer", "extension.mjs"),
+    join(home, "session-state", "session-id", "extensions", "renamed-session-observer", "extension.mjs"),
+  ];
+  try {
+    await mkdir(dirname(canonicalPath), { recursive: true });
+    await writeFile(canonicalPath, "");
+    for (const alias of aliases) {
+      await mkdir(dirname(alias), { recursive: true });
+      await writeFile(alias, "");
+      assert.equal(await shouldRegister(pathToFileURL(alias).href, home), false, alias);
+    }
+    assert.equal(await shouldRegister(pathToFileURL(canonicalPath).href, home), true);
+  } finally {
+    await rm(home, { recursive: true, force: true });
+  }
+});
+
 test("distinct legacy user provider retains ownership until it is removed", async () => {
   const home = await mkdtemp(join(tmpdir(), "observer-provider-"));
   const project = pathToFileURL(join(home, "project", ".github", "extensions", "agentcorp-extension", "extension.mjs")).href;

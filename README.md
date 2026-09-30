@@ -2,10 +2,9 @@
 
 ![Isometric pixel-art AgentCorp office with desk wings, sofas, plants, and a coffee counter](assets/agentcorp-office.png)
 
-A cozy, read-only 3D office for local Copilot CLI sessions. The installable
-extension lives in [`.github/extensions/agentcorp-extension`](.github/extensions/agentcorp-extension);
-its viewer is bundled there and needs no Vite server or build on the device
-where you install it.
+## Bring your agents to life. 
+
+A cozy office for local Copilot session agents. :)
 
 ## Install on this or another device
 

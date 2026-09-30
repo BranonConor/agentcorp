@@ -24,4 +24,6 @@ all references resolve, with no extra generated files. Commit changes to
 both source and generated viewer when changing the art or UI. Tests copy the
 installable folder to a temporary home to check that it serves independently,
 does not expose files outside `viewer/`, and returns only fresh, sanitized,
-at-most-16-session snapshots with an aggregate overflow count.
+at-most-16-session snapshots with an aggregate overflow count. Observer
+layout tests also keep scene identity stable when those sessions change
+priority or leave the visible office.

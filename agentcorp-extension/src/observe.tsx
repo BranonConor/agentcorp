@@ -8,10 +8,9 @@ import { EXTRA_DESKS, LIVE_COFFEE_Z, MAX_LIVE_DESKS, MIN_LIVE_DESKS, assignLoung
 import { sampleDaylight } from "../game/lighting";
 import { AGENTCORP_LETTERS, AGENTCORP_MARK, AGENTCORP_WORDMARK } from "../game/sprite-art";
 import { createWorld } from "../game/world";
-import { agentName } from "./room";
+import { arrangeObservation, newAgent, type Member } from "./observation-layout";
+import { agentName, agentPersona } from "./room";
 
-type Phase = "idle" | "thinking" | "tool" | "blocked";
-type Member = { id: string; phase: Phase; present: true };
 type Observation = { root: string; sessions: Member[]; overflow: number };
 const desks = [...DESKS, ...EXTRA_DESKS];
 const coffee = COFFEE_SPOTS.map(({ x }) => ({ x, z: LIVE_COFFEE_Z + 0.75 }));
@@ -22,27 +21,19 @@ const wordmarkPaths = [...AGENTCORP_WORDMARK].map((letter, index) =>
     [...row].flatMap((bit, x) => bit === "1" ? [`M${index * 6 + x} ${y}h1v1h-1z`] : []),
   ).join(""));
 
-function newAgent(id: number): Agent {
-  return { id, state: "idle", x: 100, z: 100, target: { x: 100, z: 100 },
-    route: [], workLeft: 0, workTotal: 0, visitedContext: false };
-}
-
-function updateScene(scene: Simulation, members: Member[], occupied: boolean[]) {
+function updateScene(scene: Simulation, members: Member[]) {
   const count = Math.min(members.length, MAX_LIVE_DESKS);
-  while (scene.agents.length < count) scene.agents.push(newAgent(scene.agents.length));
-  scene.agents.length = count;
-  occupied.fill(false, count);
   scene.progress.capacity = count;
   scene.requests = [];
   const lounge = assignLoungeSpots(members.slice(MIN_LIVE_DESKS, count).map(member => member.phase === "idle"));
   for (let index = 0; index < count; index++) {
     const member = members[index];
     const sprite = scene.agents[index];
+    if (!sprite) throw new Error(`Missing office agent for desk ${index + 1}`);
     const busy = member.phase !== "idle";
     const destination = busy ? desks[index] : index < MIN_LIVE_DESKS ? coffee[index] : lounge[index - MIN_LIVE_DESKS];
     if (!destination) throw new Error(`Missing office destination for desk ${index + 1}`);
-    if (!occupied[index]) { sprite.x = destination.x; sprite.z = destination.z; }
-    occupied[index] = true;
+    if (sprite.x === 100) { sprite.x = destination.x; sprite.z = destination.z; }
     if (sprite.target.x !== destination.x || sprite.target.z !== destination.z) {
       sprite.route = routeAroundDividers(sprite, destination);
     }
@@ -80,6 +71,10 @@ function move(scene: Simulation) {
 
 function Office() {
   const host = useRef<HTMLDivElement>(null);
+  const manageButton = useRef<HTMLButtonElement>(null);
+  const closeButton = useRef<HTMLButtonElement>(null);
+  const panelOpener = useRef<HTMLButtonElement | null>(null);
+  const restorePanelFocus = useRef(false);
   const world = useRef<ReturnType<typeof createWorld> | null>(null);
   const members = useRef<Member[]>([]);
   const [state, setState] = useState<Observation | null>(null);
@@ -101,6 +96,41 @@ function Office() {
   const selectedRef = useRef("");
   const darkTheme = themePreference === "system" ? systemDark : themePreference === "dark";
   useLayoutEffect(() => { document.documentElement.dataset.officeTheme = darkTheme ? "dark" : "light"; }, [darkTheme]);
+  useLayoutEffect(() => {
+    if (!panelOpen && restorePanelFocus.current) {
+      restorePanelFocus.current = false;
+      (panelOpener.current ?? manageButton.current)?.focus();
+    }
+  }, [panelOpen]);
+  const clearSelection = () => {
+    selectedRef.current = "";
+    setSelected("");
+    hoverIndex.current = null;
+    setHover(null);
+    world.current?.focusAgent(null);
+  };
+  const openPanel = (opener?: HTMLButtonElement) => {
+    panelOpener.current = opener ?? null;
+    setPanelOpen(true);
+  };
+  const closePanel = () => {
+    restorePanelFocus.current = true;
+    clearSelection();
+    setPanelOpen(false);
+  };
+  const focusMember = (index: number, showPanel = false) => {
+    const member = members.current[index];
+    if (!member) {
+      setError("Selected agent is no longer visible. The office will retry on the next update.");
+      return;
+    }
+    selectedRef.current = member.id;
+    setSelected(member.id);
+    hoverIndex.current = null;
+    setHover(null);
+    world.current?.focusAgent(index);
+    if (showPanel) openPanel();
+  };
   useEffect(() => {
     const media = matchMedia("(prefers-color-scheme: dark)");
     const update = () => setSystemDark(media.matches);
@@ -112,22 +142,12 @@ function Office() {
     const onKeyDown = (event: KeyboardEvent) => {
       if (event.key === "Escape") {
         event.preventDefault();
-        setPanelOpen(false);
-        selectedRef.current = "";
-        setSelected("");
-        world.current?.focusAgent(null);
+        closePanel();
       }
     };
     window.addEventListener("keydown", onKeyDown);
     return () => window.removeEventListener("keydown", onKeyDown);
   }, [panelOpen]);
-  const closePanel = () => {
-    setPanelOpen(false);
-    selectedRef.current = "";
-    setSelected("");
-    setHover(null);
-    world.current?.focusAgent(null);
-  };
   const toggleTheme = () => {
     const next = darkTheme ? "light" : "dark";
     try {
@@ -149,7 +169,6 @@ function Office() {
     scene.progress.capacity = 0;
     scene.progress.context = false;
     scene.progress.workflow = 1;
-    const occupied = Array<boolean>(MAX_LIVE_DESKS).fill(false);
     try {
       world.current = createWorld(host.current, scene, "live", {
         onAgentHover(index) {
@@ -170,21 +189,24 @@ function Office() {
             member?.phase === "blocked" ? "blocked" : null;
         },
         onAgentSelect(index) {
-          const member = members.current[index];
-          if (member) {
-            selectedRef.current = member.id;
-            setSelected(member.id);
-            setPanelOpen(true);
-          }
+          focusMember(index, true);
         },
-        onFocusCleared() { selectedRef.current = ""; setSelected(""); setHover(null); },
+        onFocusCleared() {
+          selectedRef.current = "";
+          setSelected("");
+          hoverIndex.current = null;
+          setHover(null);
+        },
       });
     } catch (cause) {
       host.current.classList.add("static-fallback");
       setSceneError(`3D office unavailable: ${cause instanceof Error ? cause.message : String(cause)}`);
     }
     let active = true;
+    let refreshing = false;
     const refresh = async () => {
+      if (refreshing) return;
+      refreshing = true;
       try {
         const response = await fetch("/api/observations", { cache: "no-store" });
         if (!response.ok) throw new Error(`Office returned ${response.status}`);
@@ -192,17 +214,32 @@ function Office() {
         if (!Array.isArray(next.sessions) || next.sessions.length > MAX_LIVE_DESKS ||
           !Number.isSafeInteger(next.overflow) || next.overflow < 0) throw new Error("Invalid office snapshot");
         if (!active) return;
-        members.current = next.sessions;
+        const hoveredId = hoverIndex.current === null ? "" : members.current[hoverIndex.current]?.id ?? "";
+        const arranged = arrangeObservation(members.current, scene.agents, next.sessions);
+        members.current = arranged.members;
+        scene.agents = arranged.agents;
+        updateScene(scene, arranged.members);
         world.current?.capturePositions();
-        updateScene(scene, next.sessions, occupied);
-        next.sessions.forEach((_, index) => world.current?.setAgentPersona(index, index % 4));
+        arranged.members.forEach((member, index) => world.current?.setAgentPersona(index, agentPersona(member.id)));
         setState(next);
         setError("");
-        const index = next.sessions.findIndex(member => member.id === selectedRef.current);
-        world.current?.focusAgent(index >= 0 ? index : null);
-        if (index < 0) { selectedRef.current = ""; setSelected(""); }
+        const index = arranged.members.findIndex(member => member.id === selectedRef.current);
+        if (selectedRef.current && index < 0) {
+          const selectedRowHadFocus = document.activeElement?.matches('.observer-agent-row[aria-pressed="true"]');
+          clearSelection();
+          if (selectedRowHadFocus) closeButton.current?.focus();
+        } else world.current?.focusAgent(index >= 0 ? index : null);
+        const hoveredIndex = arranged.members.findIndex(member => member.id === hoveredId);
+        hoverIndex.current = hoveredId && hoveredIndex >= 0 ? hoveredIndex : null;
+        if (hoverIndex.current === null) setHover(null);
+        else {
+          const point = world.current?.projectAgent(hoveredIndex);
+          setHover(point ? { name: agentName(hoveredId), ...point } : null);
+        }
       } catch (cause) {
         if (active) setError(`Office update failed: ${cause instanceof Error ? cause.message : String(cause)}`);
+      } finally {
+        refreshing = false;
       }
     };
     void refresh();
@@ -285,9 +322,9 @@ function Office() {
       </div>
       <div className="top-stats" aria-hidden={panelOpen} inert={panelOpen}>
         <span className="observer-count">{live} observed{overflow > 0 && ` · ${moreLabel}`}</span>
-        <button type="button" className="system-toggle" aria-expanded={panelOpen} aria-controls="system-panel"
+        <button type="button" ref={manageButton} className="system-toggle" aria-expanded={panelOpen} aria-controls="system-panel"
           aria-label={`Manage agents${blocked ? `: ${blocked} need attention` : ""}`}
-          onClick={() => setPanelOpen(true)}>Manage agents
+          onClick={event => openPanel(event.currentTarget)}>Manage agents
           {blocked > 0 && <span className="activity-attention" aria-hidden="true">{blocked}</span>}
           <span className="toggle-chevron" aria-hidden="true" /></button>
       </div>
@@ -300,7 +337,7 @@ function Office() {
             <button type="button" className={`office-status-link sdk-${statusKind}`}
               aria-label={`Observation status: ${statusLabel}. Open office overview`}
               title={visualError || "Read-only session activity"}
-              onClick={() => setPanelOpen(true)}>
+              onClick={event => openPanel(event.currentTarget)}>
               <span className="sdk-status-dot" aria-hidden="true" /> {statusLabel}
             </button>
             <span className="callout-separator" aria-hidden="true" />
@@ -315,7 +352,7 @@ function Office() {
         <div className="activity-header">
           <div className="activity-title-row">
             <h2>Overview</h2>
-            <button type="button" className="sidebar-close" onClick={closePanel} aria-label="Close overview">
+            <button type="button" ref={closeButton} className="sidebar-close" onClick={closePanel} aria-label="Close overview">
               <svg viewBox="0 0 20 20" fill="none" aria-hidden="true"><path d="M5 5l10 10M15 5L5 15" /></svg>
             </button>
           </div>
@@ -345,25 +382,20 @@ function Office() {
                 <span className="activity-tag">{sessions.length} shown</span></div>
               {overflow > 0 && <p>{moreLabel} not shown (16-desk limit).</p>}
               {sessions.length ? <div className="activity-list">
-                {sessions.map((member, index) => <div key={member.id}
-                  className={`activity-worker-row ${selected === member.id ? "worker-selected" : ""}`}>
+                {sessions.map(member => <button key={member.id} type="button"
+                  className={`activity-worker-row observer-agent-row ${selected === member.id ? "worker-selected" : ""}`}
+                  aria-pressed={selected === member.id} disabled={!!sceneError}
+                  onClick={() => {
+                    if (selectedRef.current === member.id) clearSelection();
+                    else focusMember(members.current.findIndex(current => current.id === member.id));
+                  }}>
                   <span className="worker-avatar" aria-hidden="true">{agentName(member.id).split(" ").map(part => part[0]).join("")}</span>
-                  <div className="activity-worker-info">
-                    <div className="activity-worker-title"><strong>{agentName(member.id)}</strong></div>
-                    <p className="activity-worker-meta">{member.id === state?.root ? "This session" : "Local session"} · desk {index + 1}</p>
-                  </div>
-                  <div className="observer-worker-actions">
-                    <span className={`activity-tag status-${member.phase}`}>{member.phase}</span>
-                    <button type="button" className="focus-button"
-                      aria-label={`Focus ${agentName(member.id)}`}
-                      aria-pressed={selected === member.id}
-                      onClick={() => {
-                        selectedRef.current = member.id;
-                        setSelected(member.id);
-                        world.current?.focusAgent(index);
-                      }}>Focus</button>
-                  </div>
-                </div>)}
+                  <span className="activity-worker-info">
+                    <span className="activity-worker-title"><strong>{agentName(member.id)}</strong></span>
+                    <span className="activity-worker-meta">{member.id === state?.root ? "This session" : "Local session"} · desk {members.current.findIndex(current => current.id === member.id) + 1}</span>
+                  </span>
+                  <span className={`activity-tag status-${member.phase}`}>{member.phase}</span>
+                </button>)}
               </div> : <p className="activity-empty">{!state ? "Finding local sessions…" :
                 "No recent local heartbeats. Sessions appear when they run the AgentCorp extension; resume or reload older sessions to start publishing."}</p>}
             </div>

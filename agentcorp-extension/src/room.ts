@@ -70,6 +70,11 @@ export function agentName(key: string): string {
   return `${givenNames[hash(`given:${key}`) % givenNames.length]} ${familyNames[hash(`family:${key}`) % familyNames.length]}`;
 }
 
+/** Preserve a session's appearance when its desk slot changes. */
+export function agentPersona(key: string): number {
+  return hash(`persona:${key}`) % 4;
+}
+
 export function sessionName(session: Session, currentId: string): string {
   return session.title || (session.sessionId === currentId ?
     "Your session" : `Session ${session.sessionId.slice(0, 8)}`);

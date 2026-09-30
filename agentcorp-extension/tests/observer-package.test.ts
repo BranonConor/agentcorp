@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import { request } from "node:http";
-import { cp, mkdtemp, readFile, readdir, rm, writeFile } from "node:fs/promises";
+import { cp, mkdir, mkdtemp, readFile, readdir, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import { pathToFileURL } from "node:url";
@@ -15,7 +15,7 @@ const { shouldRegister } = await import(pathToFileURL(join(installed, "provider-
 const { startServer } = await import(pathToFileURL(join(installed, "viewer-server.mjs")).href);
 const { heartbeat, dataDir } = await import(pathToFileURL(join(installed, "observations.mjs")).href);
 
-test("standalone extension folder serves only packaged assets and sanitized local status", async () => {
+test("standalone extension folder serves only packaged assets and sanitized local status", async t => {
   const manifest = JSON.parse(await readFile(join(installed, "copilot-extension.json"), "utf8"));
   assert.equal(manifest.name, "agentcorp-extension");
   assert.equal(await shouldRegister(pathToFileURL(join(installed, "extension.mjs")).href, folder), true);
@@ -42,6 +42,17 @@ test("standalone extension folder serves only packaged assets and sanitized loca
     }
     const assets = await readdir(join(installed, "viewer", "assets"));
     assert.deepEqual(assets.sort(), references.map(path => path.split("/").at(-1)!).sort());
+    await mkdir(join(folder, "agentcorp-observer"), { recursive: true });
+    await t.test("returns HTTP 500 when local artifacts cannot be scanned", async () => {
+      await writeFile(dataDir, "not a directory");
+      try {
+        const failure = await fetch(new URL("/api/observations", url), { signal: AbortSignal.timeout(3_000) });
+        assert.equal(failure.status, 500);
+        assert.equal(await failure.text(), "Office update unavailable.");
+      } finally {
+        await rm(dataDir, { force: true });
+      }
+    });
     const state = await (await fetch(new URL("/api/observations", url))).json();
     assert.deepEqual(state, { root: "root", sessions: [], overflow: 0 });
     assert.equal((await fetch(new URL("/index.html", url))).status, 404);

@@ -2,8 +2,9 @@ import assert from "node:assert/strict";
 import { test } from "node:test";
 import { StatusBubbles } from "../src/status-bubbles";
 import { newAgent } from "../src/observation-layout";
-import { reconcileOffice, advanceDepartures, type OfficeRoster } from "../src/observation-departures";
+import { reconcileOffice, advanceDepartures, advanceOffice, type OfficeRoster } from "../src/observation-departures";
 import { parsePreferences, reducedMotion } from "../src/motion-preference";
+import { OfficeTraffic } from "../game/traffic";
 
 function roster(): OfficeRoster {
   return { members: [{ id: "one", phase: "idle", present: true }],
@@ -68,8 +69,43 @@ test("motion defaults follow the OS and explicit overrides win in both direction
   assert.equal(reducedMotion("system", false), false);
   assert.equal(reducedMotion("full", true), false);
   assert.equal(reducedMotion("reduced", false), true);
-  assert.deepEqual(parsePreferences({ motion: "reduced", autoOpen: true }), { motion: "reduced", autoOpen: true });
-  for (const value of [null, {}, { motion: "fast", autoOpen: true }, { motion: "system", autoOpen: "yes" }]) {
+  assert.deepEqual(parsePreferences({ motion: "reduced", autoOpen: true }), { motion: "reduced", autoOpen: true, chatBubbles: true });
+  assert.deepEqual(parsePreferences({ motion: "full", autoOpen: false, theme: "dark", chatBubbles: false }),
+    { motion: "full", autoOpen: false, theme: "dark", chatBubbles: false });
+  for (const value of [null, {}, { motion: "fast", autoOpen: true }, { motion: "system", autoOpen: "yes" },
+    { motion: "system", autoOpen: true, chatBubbles: "false" }, { motion: "system", autoOpen: true, theme: "blue" }]) {
     assert.throws(() => parsePreferences(value), /Invalid saved office preferences/);
   }
+});
+
+test("disabled bubbles still consume transitions without replaying a backlog when re-enabled", () => {
+  const office = roster(), status = new StatusBubbles();
+  status.update(office, 0, false);
+  office.members[0].phase = "tool"; status.update(office, 1, false);
+  assert.deepEqual(status.update(office, 2, false), []);
+  assert.deepEqual(status.update(office, 10, true), []);
+  office.members[0].phase = "blocked"; status.update(office, 11, false);
+  assert.deepEqual(status.update(office, 12, false), []);
+  assert.equal(status.update(office, 13, true)[0].text, "Waiting for you");
+});
+
+test("hiding chat bubbles never skips reconnect grace, farewell dwell, routing or removal", () => {
+  const visible = reconcileOffice(roster(), [], { one: false });
+  const hidden = structuredClone(visible);
+  const traffic = [new OfficeTraffic(), new OfficeTraffic()];
+  const statuses = [new StatusBubbles(), new StatusBubbles()];
+  let farewellShown = false;
+  let finishedAt = 0;
+  for (let frame = 0; frame < 2000; frame++) {
+    const now = frame / 30;
+    advanceOffice(visible, traffic[0], 1 / 30);
+    advanceOffice(hidden, traffic[1], 1 / 30);
+    farewellShown ||= statuses[0].update(visible, now, true).some(bubble => bubble.farewell);
+    assert.deepEqual(statuses[1].update(hidden, now, false), []);
+    assert.deepEqual(hidden, visible);
+    if (!hidden.agents.length) { finishedAt = now; break; }
+  }
+  assert.ok(farewellShown);
+  assert.ok(finishedAt > 5.8);
+  assert.deepEqual(hidden.agents, []);
 });

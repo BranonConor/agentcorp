@@ -70,11 +70,13 @@ four-second reconnect grace period, says goodbye and walks to a front
 corner exit before disappearing. A reconnect cancels the departure; being
 displaced by the 16-desk display limit does not trigger a false goodbye.
 Departing avatars are not included in the connected-session counts.
-Occasional bubbles report actual phases, not inferred task results. Use the
-Motion selector for System / Reduced / Full motion, and the Overview's
-"Open automatically in new sessions" checkbox for startup behavior. Both
-explicit preferences persist across extension reloads and changing viewer ports;
-reduced mode keeps status messages while hiding travel and decorative motion.
+Occasional bubbles report actual phases, not inferred task results. The gear
+button opens four toggles: **Dark Mode**, **Reduced Motion**, **Auto Start** and
+**Chat Bubbles**. Explicit choices persist across extension reloads and changing
+viewer ports. Reduced motion follows the OS until explicitly toggled; Chat
+Bubbles defaults on, and switching it off hides speech without interrupting
+arrivals, reconnect grace or departures. Auto Start affects future session
+startup, not the currently open panel.
 
 Click an agent in the office or select its full Observed agents row to focus
 the camera. Rows work with Enter and Space; selecting the same row again

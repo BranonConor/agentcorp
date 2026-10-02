@@ -14,7 +14,7 @@ export type OfficeBubble = { id: string; text: string; index: number; anchor: Po
 export class StatusBubbles {
   private entries = new Map<string, Status>();
 
-  update(roster: OfficeRoster, now: number): OfficeBubble[] {
+  update(roster: OfficeRoster, now: number, enabled = true): OfficeBubble[] {
     const retained = new Set([...roster.members, ...roster.departures.map(departure => departure.member)].map(member => member.id));
     for (const id of this.entries.keys()) if (!retained.has(id)) this.entries.delete(id);
     const bubbles: OfficeBubble[] = [];
@@ -48,6 +48,6 @@ export class StatusBubbles {
       bubbles.push({ id: departure.member.id, text: departure.phrase, index: roster.members.length + index,
         anchor: departure.anchor, farewell: true });
     });
-    return bubbles;
+    return enabled ? bubbles : [];
   }
 }

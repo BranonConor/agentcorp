@@ -47,22 +47,27 @@
 .observer-shell .observer-agent-row > .activity-tag { align-self: center; }
 .observer-shell .status-idle { background: var(--office-accent-bg); color: var(--office-accent); }
 .observer-shell .world-callout.live-callout { z-index: 3; }
-.observer-shell .motion-control {
-  display: flex;
-  align-items: center;
-  gap: 5px;
-  color: var(--office-text);
-  font: 600 11px var(--sans);
-}
-.observer-shell .motion-control select {
+.office-settings-popover {
+  position: fixed;
+  z-index: 30;
+  box-sizing: border-box;
+  width: min(260px, calc(100vw - 16px));
+  max-height: calc(100dvh - 16px);
+  overflow-y: auto;
+  padding: 8px 12px;
   color: var(--office-text);
   background: var(--office-panel);
   border: 1px solid var(--office-border);
-  border-radius: 6px;
-  padding: 5px;
+  border-radius: 10px;
+  box-shadow: 0 8px 24px var(--office-shadow);
+  font: 600 12px var(--sans);
 }
-.observer-shell .auto-open-control { display: flex; align-items: center; gap: 8px; margin-top: 8px; }
-.observer-shell .auto-open-control input { accent-color: var(--office-accent); }
+.office-settings-popover label { display: flex; justify-content: space-between; align-items: center; gap: 16px; padding: 10px 0; }
+.office-settings-popover input { width: 17px; height: 17px; margin: 0; accent-color: var(--office-accent); }
+.office-settings-popover input:focus-visible { outline: 2px solid var(--office-accent); outline-offset: 3px; }
+.office-settings-popover p { margin: 8px 0; color: var(--office-secondary); font-weight: 400; line-height: 1.5; }
+.office-settings-popover [role="alert"] { color: var(--office-warning); }
+.observer-shell .settings-toggle svg { width: 19px; height: 19px; }
 .observer-shell .agent-farewell {
   padding: 9px 12px;
   border-radius: 12px;

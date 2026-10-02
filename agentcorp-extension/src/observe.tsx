@@ -13,7 +13,8 @@ import { advanceOffice, reconcileOffice, type OfficeRoster } from "./observation
 import { updateObservationScene } from "./observation-movement";
 import { OfficeTraffic } from "../game/traffic";
 import { StatusBubbles, type OfficeBubble } from "./status-bubbles";
-import { parsePreferences, reducedMotion, type ViewerPreferences } from "./motion-preference";
+import { parsePreferences, reducedMotion, type PreferenceUpdate, type ViewerPreferences } from "./motion-preference";
+import { SettingsMenu } from "./settings-menu";
 import { agentName, agentPersona } from "./room";
 
 type Observation = { root: string; sessions: Member[]; overflow: number; presence?: Record<string, boolean> };
@@ -37,10 +38,13 @@ function Office() {
   const [sceneError, setSceneError] = useState("");
   const [navigationError, setNavigationError] = useState("");
   const [trafficError, setTrafficError] = useState("");
-  const [themeError, setThemeError] = useState("");
   const [preferences, setPreferences] = useState<ViewerPreferences | null>(null);
   const [preferenceError, setPreferenceError] = useState("");
   const [savingPreference, setSavingPreference] = useState(false);
+  const savingRef = useRef(false);
+  const [settingsOpen, setSettingsOpen] = useState(false);
+  const chatBubblesRef = useRef(true);
+  chatBubblesRef.current = preferences?.chatBubbles ?? true;
   const [systemReduced, setSystemReduced] = useState(() => matchMedia("(prefers-reduced-motion: reduce)").matches);
   const motionReduced = reducedMotion(preferences?.motion ?? "system", systemReduced);
   const reducedRef = useRef(motionReduced);
@@ -54,12 +58,17 @@ function Office() {
   const [bubbles, setBubbles] = useState<OfficeBubble[]>([]);
   const [previewOffset, setPreviewOffset] = useState(0);
   const previewRef = useRef(0);
-  const [themePreference, setThemePreference] = useState<"system" | "light" | "dark">(() => {
-    const saved = localStorage.getItem(themeKey);
-    return saved === "light" || saved === "dark" ? saved : "system";
+  const [legacyTheme] = useState(() => {
+    try {
+      const saved = localStorage.getItem(themeKey);
+      return { theme: saved === "light" || saved === "dark" ? saved : "system", error: "" };
+    } catch (cause) {
+      return { theme: "system", error: `Previous theme preference unavailable: ${String(cause)}` };
+    }
   });
   const [systemDark, setSystemDark] = useState(() => matchMedia("(prefers-color-scheme: dark)").matches);
   const selectedRef = useRef("");
+  const themePreference = preferences?.theme ?? legacyTheme.theme;
   const darkTheme = themePreference === "system" ? systemDark : themePreference === "dark";
   useLayoutEffect(() => { document.documentElement.dataset.officeTheme = darkTheme ? "dark" : "light"; }, [darkTheme]);
   useLayoutEffect(() => {
@@ -76,6 +85,7 @@ function Office() {
     world.current?.focusAgent(null);
   };
   const openPanel = (opener?: HTMLButtonElement) => {
+    setSettingsOpen(false);
     panelOpener.current = opener ?? null;
     setPanelOpen(true);
   };
@@ -117,7 +127,9 @@ function Office() {
     return () => { controller.abort(); media.removeEventListener("change", update); };
   }, []);
   useEffect(() => { world.current?.setReducedMotion(motionReduced); }, [motionReduced]);
-  const savePreference = async (update: Partial<ViewerPreferences>) => {
+  const savePreference = async (update: PreferenceUpdate) => {
+    if (!preferences || savingRef.current) return;
+    savingRef.current = true;
     setSavingPreference(true);
     try {
       const response = await fetch("/api/preferences", {
@@ -128,7 +140,7 @@ function Office() {
       setPreferenceError("");
     } catch (cause) {
       setPreferenceError(`Preference not saved: ${cause instanceof Error ? cause.message : String(cause)}`);
-    } finally { setSavingPreference(false); }
+    } finally { savingRef.current = false; setSavingPreference(false); }
   };
   useEffect(() => {
     if (!panelOpen) return;
@@ -141,16 +153,6 @@ function Office() {
     window.addEventListener("keydown", onKeyDown);
     return () => window.removeEventListener("keydown", onKeyDown);
   }, [panelOpen]);
-  const toggleTheme = () => {
-    const next = darkTheme ? "light" : "dark";
-    try {
-      localStorage.setItem(themeKey, next);
-      setThemePreference(next);
-      setThemeError("");
-    } catch (cause) {
-      setThemeError(`Theme preference could not be saved: ${cause instanceof Error ? cause.message : String(cause)}`);
-    }
-  };
   const previewLight = () => {
     previewRef.current = (previewRef.current + 0.25) % 1;
     setPreviewOffset(previewRef.current);
@@ -269,7 +271,7 @@ function Office() {
           remainder -= STEP; advanced = true;
         }
         world.current?.render(now / 1000, previewRef.current, remainder / STEP, advanced);
-        const activeBubbles = statusBubbles.update(roster, scene.time);
+        const activeBubbles = statusBubbles.update(roster, scene.time, chatBubblesRef.current);
         setTrafficError(traffic.error);
         const signature = activeBubbles.map(bubble => `${bubble.id}/${bubble.text}/${bubble.index}`).join("|");
         if (signature !== bubbleSignature) { bubbleSignature = signature; setBubbles(activeBubbles); }
@@ -311,6 +313,7 @@ function Office() {
   const blocked = sessions.filter(member => member.phase === "blocked").length;
   const overflow = state?.overflow ?? 0;
   const moreLabel = `${overflow} more session${overflow === 1 ? "" : "s"}`;
+  const themeError = preferences?.theme ? "" : legacyTheme.error;
   const visualError = error || sceneError || navigationError || trafficError || preferenceError || themeError;
   const connected = !error && state !== null;
   const statusKind = visualError ? "error" : !state || !live ? "connecting" : "online";
@@ -332,16 +335,6 @@ function Office() {
             <path key={index} d={path} fill={index < 5 ? "var(--office-text)" : "var(--office-purple)"} />)}
         </svg>
         <div className="identity-controls">
-          <label className="motion-control">Motion
-            <select aria-label="Office motion" value={preferences?.motion ?? "system"}
-              disabled={!preferences || savingPreference}
-              onChange={event => {
-                const motion = event.currentTarget.value;
-                if (motion === "system" || motion === "reduced" || motion === "full") void savePreference({ motion });
-              }}>
-              <option value="system">System</option><option value="reduced">Reduced</option><option value="full">Full</option>
-            </select>
-          </label>
           <button type="button" className="time-preview" onClick={previewLight}
             title="Preview the next six hours of decorative office lighting"
             aria-label={`Office lighting ${daylight.label}; preview next six hours`}>
@@ -349,11 +342,9 @@ function Office() {
             <span className="time-value">{daylight.label}</span>
             <span className="time-arrow" aria-hidden="true">↻</span>
           </button>
-          <button type="button" className="theme-toggle" onClick={toggleTheme}
-            aria-label={`Switch to ${darkTheme ? "light" : "dark"} theme`}
-            title={`HUD appearance: ${themePreference === "system" ? "system" : themePreference}`}>
-            <span aria-hidden="true">{darkTheme ? "☼" : "☾"}</span>
-          </button>
+          <SettingsMenu open={settingsOpen} onOpenChange={setSettingsOpen} preferences={preferences}
+            dark={darkTheme} reduced={motionReduced} saving={savingPreference}
+            error={preferenceError || themeError} onSave={update => void savePreference(update)} />
         </div>
       </div>
       <div className="top-stats" aria-hidden={panelOpen} inert={panelOpen}>
@@ -369,7 +360,7 @@ function Office() {
       <section className="world-panel" aria-label="Live Copilot office">
         <div className="world-host" ref={host}>
           {hover && <div ref={hoverLabel} className="agent-hover" style={{ left: hover.x, top: hover.y }}>{hover.name}</div>}
-          {bubbles.map(bubble => <div key={bubble.id}
+          {(preferences?.chatBubbles ?? true) && bubbles.map(bubble => <div key={bubble.id}
             ref={element => {
               if (element) farewellLabels.current.set(bubble.id, element);
               else farewellLabels.current.delete(bubble.id);
@@ -404,19 +395,6 @@ function Office() {
         </div>
         <div className="activity-scroll activity-list-scroll">
           <section className="activity-view overview-list" aria-label="Office overview status">
-            <div className="activity-row">
-              <div className="activity-row-heading"><strong>Office preferences</strong></div>
-              <label className="auto-open-control">
-                <input type="checkbox" checked={preferences?.autoOpen ?? false}
-                  disabled={!preferences || savingPreference}
-                  onChange={event => void savePreference({ autoOpen: event.currentTarget.checked })} />
-                Open automatically in new sessions
-              </label>
-              <p>Applies at subsequent extension startup in canvas-capable sessions. Existing panels and once-per-session startup records stay unchanged.</p>
-              <p>Reduced motion hides travel and disables decorative motion, while status messages remain visible.</p>
-              {savingPreference && <p role="status">Saving preference...</p>}
-              {preferenceError && <p role="alert">{preferenceError}</p>}
-            </div>
             <div className="activity-row activity-row-first">
               <div className="activity-row-heading"><strong>Connection</strong>
                 <span className={`activity-tag ${connected ? "activity-tag-live" : error ? "activity-tag-warning" : ""}`}>

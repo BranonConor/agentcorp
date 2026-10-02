@@ -77,15 +77,26 @@ rate-limit routine messages to once per 8 seconds. Waiting-for-user remains
 visible, and farewells take precedence; no prompts, tool arguments, or inferred
 task outcomes are shown.
 
-The Motion control defaults to the OS `prefers-reduced-motion` setting. Reduced
+The gear menu contains exactly Dark Mode, Reduced Motion, Auto Start and Chat
+Bubbles. It supports keyboard focus, Escape/outside-click dismissal, and a
+viewport-bounded popover. Reduced Motion defaults to the OS
+`prefers-reduced-motion` setting; existing `system/reduced/full` values remain
+valid, and toggling saves `reduced` or `full`. Reduced
 mode hides travel, fixes status bubble anchors and disables bobbing/decorative
 motion and animated turns; logical routes, yielding, grace and exits still
 complete. Overrides persist in
 `$COPILOT_HOME/extensions/agentcorp-extension/artifacts/viewer-preferences.json`,
-not port-scoped localStorage. The existing `artifacts/settings.json` remains
-strictly autoOpen-only. Overview also exposes "Open automatically in new
-sessions", using the startup implementation's existing reader and validation.
-Both preferences save only on explicit interaction; errors keep the last saved
-control value visible. `/api/preferences` accepts only GET and same-origin PUT
-with a 256-byte JSON body changing exactly one allow-listed preference, and
-writes atomically to fixed paths. Observation endpoints remain read-only.
+not port-scoped localStorage. Theme (`system/light/dark`) and `chatBubbles`
+also live in this viewer file. An absent Chat Bubbles preference defaults to
+enabled; absent theme preserves the current legacy theme/OS behavior until an
+explicit choice is saved. Hidden bubbles still process phase changes, cooldowns
+and farewell timing, so re-enabling does not replay expired messages.
+The existing `artifacts/settings.json` remains strictly autoOpen-only; Auto
+Start uses its shared reader and validation without changing panel markers.
+Preferences save only on explicit interaction; unknown/failed loads disable
+the controls and errors retain the last saved values. `/api/preferences`
+accepts only GET and same-origin PUT with a 256-byte JSON body changing exactly
+one allow-listed preference. A bounded cross-process lock serializes atomic
+read-modify-write updates, preserving other fields even across independent
+providers. Lock contention is reported instead of dropping a write. Observation
+endpoints remain read-only.

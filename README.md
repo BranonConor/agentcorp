@@ -70,4 +70,11 @@ keeps its identity and desk through activity changes; the office does not
 automatically tour agents. Camera movement is eased unless reduced motion is
 preferred.
 
+## Automatically open the office
+
+Startup auto-open is disabled by default. To opt in, follow the
+[auto-open settings guide](.github/extensions/agentcorp-extension/README.md#automatically-open-the-office).
+It opens the office once per canvas-capable session, without a prompt or model
+call, and respects existing panels and panels you close.
+
 For the viewer build and tests, see [the source guide](agentcorp-extension/README.md).

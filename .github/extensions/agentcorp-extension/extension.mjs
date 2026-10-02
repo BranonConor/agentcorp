@@ -1,5 +1,6 @@
 import { randomUUID } from "node:crypto";
 import { createCanvas, joinSession } from "@github/copilot-sdk/extension";
+import { autoOpenCanvas } from "./auto-open.mjs";
 import { clearHeartbeat, heartbeat, validId } from "./observations.mjs";
 import { shouldRegister } from "./provider-selection.mjs";
 import { startServer } from "./viewer-server.mjs";
@@ -60,6 +61,11 @@ if (active) {
   ]) session.on(event, () => publish(next));
   process.on("SIGTERM", () => { void shutdown().catch(error => console.error("AgentCorp shutdown failed:", error)); });
   process.on("SIGINT", () => { void shutdown().catch(error => console.error("AgentCorp shutdown failed:", error)); });
+  try {
+    console.error(`AgentCorp auto-open: ${await autoOpenCanvas(session)}.`);
+  } catch (error) {
+    console.error("AgentCorp auto-open failed:", error);
+  }
 }
 
 async function shutdown() {

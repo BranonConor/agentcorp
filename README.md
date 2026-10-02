@@ -65,18 +65,23 @@ are left intact but are not used for live discovery.
 Agents walk around desks, chairs, sofas and other solid furniture, using
 the open aisles rather than crossing through objects. New agents enter from
 the lower corners; agents yield in occupied aisles and ease into turns.
+They say "Hello!" once when first entering the current viewer.
 When a previously visible session disconnects, its avatar waits through a
-four-second reconnect grace period, says goodbye and walks to a front
+four-second reconnect grace period and is confirmed still missing, says
+goodbye and walks to a front
 corner exit before disappearing. A reconnect cancels the departure; being
 displaced by the 16-desk display limit does not trigger a false goodbye.
 Departing avatars are not included in the connected-session counts.
 Occasional bubbles report actual phases, not inferred task results. The gear
 button opens four toggles: **Dark Mode**, **Reduced Motion**, **Auto Start** and
-**Chat Bubbles**. Explicit choices persist across extension reloads and changing
+**Chat Bubbles**, presented as readable slide switches. Explicit choices persist across extension reloads and changing
 viewer ports. Reduced motion follows the OS until explicitly toggled; Chat
 Bubbles defaults on, and switching it off hides speech without interrupting
 arrivals, reconnect grace or departures. Auto Start affects future session
 startup, not the currently open panel.
+The clock starts at local computer time on each load; the existing accelerated
+decorative day and six-hour previews continue from that shared clock/lighting
+origin. The fourth preview returns to a fresh local-time sample.
 
 Click an agent in the office or select its full Observed agents row to focus
 the camera. Rows work with Enter and Space; selecting the same row again

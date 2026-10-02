@@ -5,14 +5,14 @@ import "../live.css";
 import "../observe.css";
 import { Simulation, initialProgress } from "../game/simulation";
 import { MAX_LIVE_DESKS, MIN_LIVE_DESKS } from "../game/live-layout";
-import { sampleDaylight } from "../game/lighting";
+import { createOfficeClock, previewOfficeClock, sampleDaylight } from "../game/lighting";
 import { AGENTCORP_LETTERS, AGENTCORP_MARK, AGENTCORP_WORDMARK } from "../game/sprite-art";
 import { createWorld } from "../game/world";
-import { newAgent, type Member } from "./observation-layout";
+import { assertFreshObservation, newAgent, OBSERVATION_POLL_MS, type Member } from "./observation-layout";
 import { advanceOffice, reconcileOffice, type OfficeRoster } from "./observation-departures";
 import { updateObservationScene } from "./observation-movement";
 import { OfficeTraffic } from "../game/traffic";
-import { StatusBubbles, type OfficeBubble } from "./status-bubbles";
+import { bubbleMatchesView, StatusBubbles, type OfficeBubble } from "./status-bubbles";
 import { parsePreferences, reducedMotion, type PreferenceUpdate, type ViewerPreferences } from "./motion-preference";
 import { SettingsMenu } from "./settings-menu";
 import { agentName, agentPersona } from "./room";
@@ -56,8 +56,9 @@ function Office() {
   const hoverLabel = useRef<HTMLDivElement>(null);
   const farewellLabels = useRef(new Map<string, HTMLDivElement>());
   const [bubbles, setBubbles] = useState<OfficeBubble[]>([]);
-  const [previewOffset, setPreviewOffset] = useState(0);
-  const previewRef = useRef(0);
+  const [initialClock] = useState(() => createOfficeClock());
+  const clock = useRef(initialClock);
+  const [daylight, setDaylight] = useState(() => sampleDaylight(0, initialClock.offset));
   const [legacyTheme] = useState(() => {
     try {
       const saved = localStorage.getItem(themeKey);
@@ -154,8 +155,8 @@ function Office() {
     return () => window.removeEventListener("keydown", onKeyDown);
   }, [panelOpen]);
   const previewLight = () => {
-    previewRef.current = (previewRef.current + 0.25) % 1;
-    setPreviewOffset(previewRef.current);
+    previewOfficeClock(clock.current);
+    setDaylight(sampleDaylight(clock.current.simulationSeconds, clock.current.offset));
   };
   useEffect(() => {
     if (!host.current) return;
@@ -168,11 +169,25 @@ function Office() {
     const traffic = new OfficeTraffic();
     const statusBubbles = new StatusBubbles();
     let bubbleSignature = "";
+    const syncBubbles = () => {
+      const current = statusBubbles.update(roster, scene.time, chatBubblesRef.current);
+      const byId = new Map(current.map(bubble => [bubble.id, bubble]));
+      for (const [id, label] of farewellLabels.current) {
+        const bubble = byId.get(id);
+        if (!bubble || !bubbleMatchesView(bubble, roster, { id, kind: label.dataset.bubbleKind, text: label.textContent })) {
+          label.hidden = true;
+        }
+      }
+      const signature = current.map(bubble => `${bubble.id}/${bubble.kind}/${bubble.text}/${bubble.index}`).join("|");
+      if (signature !== bubbleSignature) { bubbleSignature = signature; setBubbles(current); }
+      return current;
+    };
     const syncRoster = () => {
       scene.agents = roster.agents;
       world.current?.capturePositions();
       [...roster.members, ...roster.departures.map(departure => departure.member)]
         .forEach((member, index) => world.current?.setAgentPersona(index, agentPersona(member.id)));
+      syncBubbles();
     };
     try {
       world.current = createWorld(host.current, scene, "live", {
@@ -213,6 +228,7 @@ function Office() {
     const refresh = async () => {
       if (refreshing) return;
       refreshing = true;
+      const startedAt = performance.now();
       try {
         const query = new URLSearchParams();
         [...roster.members, ...roster.departures.map(departure => departure.member)]
@@ -223,6 +239,7 @@ function Office() {
         if (!Array.isArray(next.sessions) || next.sessions.length > MAX_LIVE_DESKS ||
           !Number.isSafeInteger(next.overflow) || next.overflow < 0) throw new Error("Invalid office snapshot");
         if (!active) return;
+        assertFreshObservation(startedAt, performance.now());
         const hoveredId = hoverIndex.current === null ? "" : members.current[hoverIndex.current]?.id ?? "";
         roster = reconcileOffice(roster, next.sessions, next.presence);
         members.current = roster.members;
@@ -255,10 +272,11 @@ function Office() {
       }
     };
     void refresh();
-    const poll = window.setInterval(() => void refresh(), 3_000);
+    const poll = window.setInterval(() => void refresh(), OBSERVATION_POLL_MS);
     let frameId = 0;
     let last = performance.now();
     let remainder = 0;
+    let clockLabel = sampleDaylight(0, clock.current.offset).label;
     const frame = (now: number) => {
       remainder += Math.min((now - last) / 1000, 0.2);
       last = now;
@@ -270,14 +288,19 @@ function Office() {
           scene.time += STEP;
           remainder -= STEP; advanced = true;
         }
-        world.current?.render(now / 1000, previewRef.current, remainder / STEP, advanced);
-        const activeBubbles = statusBubbles.update(roster, scene.time, chatBubblesRef.current);
+        clock.current.simulationSeconds = scene.time;
+        const currentDaylight = sampleDaylight(scene.time, clock.current.offset);
+        if (currentDaylight.label !== clockLabel) {
+          clockLabel = currentDaylight.label;
+          setDaylight(currentDaylight);
+        }
+        world.current?.render(now / 1000, clock.current.offset, remainder / STEP, advanced);
+        const activeBubbles = syncBubbles();
         setTrafficError(traffic.error);
-        const signature = activeBubbles.map(bubble => `${bubble.id}/${bubble.text}/${bubble.index}`).join("|");
-        if (signature !== bubbleSignature) { bubbleSignature = signature; setBubbles(activeBubbles); }
         activeBubbles.forEach(bubble => {
           const label = farewellLabels.current.get(bubble.id);
-          if (!label) return;
+          if (!label || !bubbleMatchesView(bubble, roster,
+            { id: bubble.id, kind: label.dataset.bubbleKind, text: label.textContent })) return;
           const point = reducedRef.current ? world.current?.projectPosition(bubble.anchor) : world.current?.projectAgent(bubble.index);
           label.hidden = !point;
           if (point) {
@@ -318,7 +341,6 @@ function Office() {
   const connected = !error && state !== null;
   const statusKind = visualError ? "error" : !state || !live ? "connecting" : "online";
   const statusLabel = visualError ? "Error" : !state ? "Connecting" : live ? "Live" : "No sessions";
-  const daylight = sampleDaylight(0, previewOffset);
   return <main className={`shell live-shell observer-shell ${panelOpen ? "activity-visible" : ""}`}>
     <header className="topbar">
       <div className="identity">
@@ -336,8 +358,8 @@ function Office() {
         </svg>
         <div className="identity-controls">
           <button type="button" className="time-preview" onClick={previewLight}
-            title="Preview the next six hours of decorative office lighting"
-            aria-label={`Office lighting ${daylight.label}; preview next six hours`}>
+            title="Preview the next six hours; after four previews, return to local time"
+            aria-label={`Office lighting ${daylight.label}; preview next six hours, fourth preview resets to local time`}>
             <span className="time-icon" aria-hidden="true">{daylight.sun > 1 ? "☼" : daylight.moon > 0.2 ? "☾" : "◑"}</span>
             <span className="time-value">{daylight.label}</span>
             <span className="time-arrow" aria-hidden="true">↻</span>
@@ -366,6 +388,7 @@ function Office() {
               else farewellLabels.current.delete(bubble.id);
             }}
             className="agent-hover agent-farewell" role="status"
+            data-bubble-kind={bubble.kind}
             aria-label={`${agentName(bubble.id)} says: ${bubble.text}`}>
             {bubble.text}
           </div>)}

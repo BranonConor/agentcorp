@@ -3,7 +3,7 @@ import { test } from "node:test";
 import { createElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { readFile } from "node:fs/promises";
-import { SettingsControls, SettingsMenu } from "../src/settings-menu";
+import { SettingsControls, SettingsMenu, SettingsPopover, settingsPosition } from "../src/settings-menu";
 
 const props = {
   preferences: { motion: "system" as const, autoOpen: true, chatBubbles: true },
@@ -12,9 +12,11 @@ const props = {
 
 test("settings renders exactly the four requested labeled toggles with effective values", () => {
   const html = renderToStaticMarkup(createElement(SettingsControls, props));
-  const labels = [...html.matchAll(/<label><span>([^<]+)<\/span>(<input[^>]+>)/g)];
+  const labels = [...html.matchAll(/<label\b[^>]*><span class="settings-switch-label">([^<]+)<\/span>.*?(<input[^>]+>).*?<\/label>/g)];
   assert.deepEqual(labels.map(match => match[1]), ["Dark Mode", "Reduced Motion", "Auto Start", "Chat Bubbles"]);
   assert.equal((html.match(/type="checkbox"/g) ?? []).length, 4);
+  assert.equal((html.match(/role="switch"/g) ?? []).length, 4);
+  assert.equal((html.match(/class="settings-switch-track" aria-hidden="true"/g) ?? []).length, 4);
   assert.deepEqual(labels.map(match => match[2].includes("checked")), [true, false, true, true]);
   assert.doesNotMatch(html, /<select|<option|Office motion/);
 });
@@ -42,7 +44,25 @@ test("gear menu exposes expansion/dialog semantics and replaces the old header/s
   assert.equal((office.match(/<SettingsMenu /g) ?? []).length, 1);
   assert.doesNotMatch(office, /<select|className="motion-control"|className="auto-open-control"|onClick=\{toggleTheme\}/);
   assert.doesNotMatch(office, /<strong>Office preferences<\/strong>|Open automatically in new sessions/);
-  const css = await readFile(new URL("../live.css", import.meta.url), "utf8");
-  assert.match(css, /\.live-shell,\s*\.office-settings-popover\s*\{/);
-  assert.match(css, /:root\[data-office-theme="dark"\] \.office-settings-popover\s*\{/);
+  assert.doesNotMatch(html, /transform=/);
+  const points = [...html.matchAll(/points="([^"]+)"/g)][0][1].split(" ").map(pair => pair.split(",").map(Number));
+  for (const axis of [0, 1]) assert.equal((Math.min(...points.map(p => p[axis])) + Math.max(...points.map(p => p[axis]))) / 2, 12);
+});
+
+test("switch content carries effective motion state in both themes and the popover fits narrow viewports", () => {
+  for (const dark of [false, true]) for (const reduced of [false, true]) {
+    const html = renderToStaticMarkup(createElement(SettingsPopover, {
+      dark, reduced, children: createElement(SettingsControls, { ...props, dark, reduced }),
+    }));
+    assert.match(html, new RegExp(`data-reduced-motion="${reduced}"`));
+    assert.match(html, new RegExp(`data-office-theme="${dark ? "dark" : "light"}"`));
+  }
+  for (const width of [320, 380, 1024]) {
+    const panel = { width: Math.min(280, width - 16), height: 280 };
+    for (const anchor of [{ right: 40, bottom: 40 }, { right: width - 10, bottom: 580 }]) {
+      const position = settingsPosition(anchor, panel, { width, height: 600 });
+      assert.ok(position.left >= 8 && position.left + panel.width <= width - 8);
+      assert.ok(position.top >= 8 && position.top + panel.height <= 592);
+    }
+  }
 });

@@ -51,23 +51,111 @@
   position: fixed;
   z-index: 30;
   box-sizing: border-box;
-  width: min(260px, calc(100vw - 16px));
+  width: min(280px, calc(100vw - 16px));
   max-height: calc(100dvh - 16px);
   overflow-y: auto;
-  padding: 8px 12px;
-  color: var(--office-text);
-  background: var(--office-panel);
-  border: 1px solid var(--office-border);
+  color-scheme: dark;
+  color: #f3fff8;
+  background: #193b35;
+  border: 1px solid #6e8b79;
   border-radius: 10px;
-  box-shadow: 0 8px 24px var(--office-shadow);
-  font: 600 12px var(--sans);
+  box-shadow: 0 10px 28px #00181066;
+  font: 600 13px/1.4 "Inter", "SF Pro Text", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
 }
-.office-settings-popover label { display: flex; justify-content: space-between; align-items: center; gap: 16px; padding: 10px 0; }
-.office-settings-popover input { width: 17px; height: 17px; margin: 0; accent-color: var(--office-accent); }
-.office-settings-popover input:focus-visible { outline: 2px solid var(--office-accent); outline-offset: 3px; }
-.office-settings-popover p { margin: 8px 0; color: var(--office-secondary); font-weight: 400; line-height: 1.5; }
-.office-settings-popover [role="alert"] { color: var(--office-warning); }
-.observer-shell .settings-toggle svg { width: 19px; height: 19px; }
+.office-settings-popover .settings-popover-content {
+  --settings-text: #f3fff8;
+  --settings-muted: #c7dfd1;
+  --settings-disabled: #b8cfbf;
+  --settings-hover: #284d47;
+  --settings-focus: #dcffd4;
+  --settings-track-off: #284d47;
+  --settings-track-on: #9edbbb;
+  --settings-track-border: #8fbaa5;
+  --settings-thumb-off: #edf8f2;
+  --settings-thumb-on: #14372e;
+  --settings-error: #ffcfb5;
+  padding: 8px 12px;
+}
+.office-settings-popover .settings-switch-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  min-height: 44px;
+  padding: 10px 6px;
+  border-radius: 6px;
+  color: var(--settings-text, #f3fff8);
+  cursor: pointer;
+}
+.office-settings-popover .settings-switch-row:hover { background: var(--settings-hover, #284d47); }
+.office-settings-popover .settings-switch-row[data-disabled="true"] {
+  color: var(--settings-disabled, #b8cfbf);
+  cursor: not-allowed;
+}
+.office-settings-popover .settings-switch-label { color: inherit; }
+.office-settings-popover .settings-switch-control { position: relative; flex: 0 0 42px; width: 42px; height: 24px; }
+.office-settings-popover .settings-switch-input {
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  width: 100%;
+  height: 100%;
+  margin: 0;
+  opacity: 0;
+  appearance: none;
+  -webkit-appearance: none;
+  cursor: inherit;
+}
+.office-settings-popover .settings-switch-track {
+  display: block;
+  position: relative;
+  width: 42px;
+  height: 24px;
+  box-sizing: border-box;
+  border: 1px solid var(--settings-track-border, #8fbaa5);
+  border-radius: 12px;
+  background: var(--settings-track-off, #284d47);
+  transition: background-color 140ms ease;
+}
+.office-settings-popover .settings-switch-track::after {
+  content: "";
+  position: absolute;
+  left: 2px;
+  top: 2px;
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  background: var(--settings-thumb-off, #edf8f2);
+  transform: translateX(0);
+  transition: transform 140ms ease, background-color 140ms ease;
+}
+.office-settings-popover .settings-switch-input:checked + .settings-switch-track { background: var(--settings-track-on, #9edbbb); }
+.office-settings-popover .settings-switch-input:checked + .settings-switch-track::after {
+  background: var(--settings-thumb-on, #14372e);
+  transform: translateX(18px);
+}
+.office-settings-popover .settings-switch-input:focus-visible + .settings-switch-track {
+  outline: 2px solid var(--settings-focus, #dcffd4);
+  outline-offset: 3px;
+}
+.office-settings-popover .settings-switch-input:disabled + .settings-switch-track { border-style: dashed; background: #36564d; }
+.office-settings-popover .settings-switch-input:disabled + .settings-switch-track::after { background: var(--settings-thumb-off, #edf8f2); }
+.office-settings-popover [data-reduced-motion="true"] .settings-switch-track,
+.office-settings-popover [data-reduced-motion="true"] .settings-switch-track::after { transition: none; }
+.office-settings-popover p { margin: 8px 6px; color: var(--settings-muted, #c7dfd1); font-size: 12px; font-weight: 400; line-height: 1.5; }
+.office-settings-popover [role="alert"] { color: var(--settings-error, #ffcfb5); }
+.observer-shell .settings-toggle {
+  display: grid;
+  place-items: center;
+  flex: 0 0 28px;
+  width: 28px;
+  height: 28px;
+  min-width: 28px;
+  padding: 0;
+  line-height: 0;
+}
+.observer-shell .settings-toggle svg { display: block; width: 20px; height: 20px; }
+.observer-shell .settings-toggle:focus-visible { outline: 2px solid var(--office-accent, #245b50); outline-offset: 3px; }
 .observer-shell .agent-farewell {
   padding: 9px 12px;
   border-radius: 12px;

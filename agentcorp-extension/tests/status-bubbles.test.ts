@@ -39,6 +39,7 @@ test("waiting-for-user bypasses cooldown, remains visible, and farewell wins ove
   assert.equal(status.update(office, 100)[0].text, "Waiting for you");
   office = reconcileOffice(office, [], { one: false });
   assert.deepEqual(status.update(office, 101), [], "Grace must not show a farewell");
+  office = reconcileOffice(office, [], { one: false });
   advanceDepartures(office, 4);
   const bubbles = status.update(office, 105);
   assert.equal(bubbles.length, 1);
@@ -53,7 +54,8 @@ test("arrivals suppress routine chatter, blocked arrivals remain useful, and red
   office.agents[0].arriving = true;
   status.update(office, 0);
   office.members[0].phase = "tool"; status.update(office, 1);
-  assert.deepEqual(status.update(office, 2), []);
+  assert.equal(status.update(office, 2)[0].text, "Hello!");
+  assert.deepEqual(status.update(office, 2.6), []);
   office.members[0].phase = "blocked"; status.update(office, 3);
   const bubble = status.update(office, 4)[0];
   assert.equal(bubble.text, "Waiting for you");
@@ -90,7 +92,8 @@ test("disabled bubbles still consume transitions without replaying a backlog whe
 });
 
 test("hiding chat bubbles never skips reconnect grace, farewell dwell, routing or removal", () => {
-  const visible = reconcileOffice(roster(), [], { one: false });
+  let visible = reconcileOffice(roster(), [], { one: false });
+  visible = reconcileOffice(visible, [], { one: false });
   const hidden = structuredClone(visible);
   const traffic = [new OfficeTraffic(), new OfficeTraffic()];
   const statuses = [new StatusBubbles(), new StatusBubbles()];

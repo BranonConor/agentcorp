@@ -46,6 +46,9 @@ data under `$COPILOT_HOME/agentcorp-observer/artifacts/`.
 
 The gear menu has exactly four toggles: **Dark Mode**, **Reduced Motion**,
 **Auto Start**, and **Chat Bubbles**. Escape or clicking outside closes it.
+The controls are slide switches with clickable labels and keyboard Space/Enter
+support. The solid deep-green panel stays readable in either office theme;
+Reduced Motion also disables switch-thumb animation.
 Dark Mode controls the existing light/dark office theme. Reduced Motion
 follows `prefers-reduced-motion` until explicitly toggled; saved
 `system/reduced/full` values remain compatible. Reduced mode hides walking and
@@ -53,6 +56,9 @@ decorative motion without interrupting logical arrivals/departures.
 Chat Bubbles defaults to on. Turning it off hides all avatar speech, including
 farewells, without changing status indicators, grace periods, or exit timing.
 Turning it on shows current/future messages, not an expired backlog.
+Newly entering agents say "Hello!" once in the current viewer. Farewells belong
+only to agents confirmed missing after reconnect grace, and clear immediately
+on reconnect; neither phrase is inherited by a reused desk slot.
 
 Viewer choices persist across reloads in `artifacts/viewer-preferences.json`:
 
@@ -67,3 +73,8 @@ Preferences are saved atomically through a bounded, same-origin local API.
 Updates preserve other fields and serialize across providers. Read/save errors
 are shown rather than silently resetting values; observation/heartbeat APIs
 remain read-only.
+
+The office clock starts at the computer's local time on each fresh load and
+shares that start with scene lighting. Its existing accelerated decorative day
+continues unchanged. Four six-hour preview clicks return to a fresh local-time
+sample; clock controls do not change Dark Mode or other preferences.

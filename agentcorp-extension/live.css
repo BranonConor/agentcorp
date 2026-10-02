@@ -3,7 +3,7 @@
   background: var(--office-canvas-bg);
 }
 
-.live-shell, .office-settings-popover {
+.live-shell {
   --office-inset: 10px;
   --sans: "Inter", "SF Pro Text", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
   --office-surface: #f8eeddf2;
@@ -26,8 +26,7 @@
 }
 
 :root[data-office-theme="dark"] { color-scheme: dark; --office-canvas-bg: #0d202b; }
-:root[data-office-theme="dark"] .live-shell,
-:root[data-office-theme="dark"] .office-settings-popover {
+:root[data-office-theme="dark"] .live-shell {
   --office-surface: #132a34f2;
   --office-panel: #192f3a;
   --office-muted: #25414c;

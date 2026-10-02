@@ -48,7 +48,11 @@ Unreachable routes stop the agent and surface an office error, retried on
 the next snapshot; there is no direct-path or teleport fallback.
 
 New avatars queue outside the two front-corner entrances and walk to their
-assigned destination. Cooperative traffic reserves complete swept routes:
+assigned destination. At first actual entry they say "Hello!" for 2.5 seconds.
+Greeting history lasts for this viewer, not globally: polls, retargets and
+reconnects never replay it, including returning after a completed departure.
+Waiting-for-user and departure messages have priority over greetings.
+Cooperative traffic reserves complete swept routes:
 nonconflicting routes run together, while conflicting agents wait. When an
 occupied destination or a head-on encounter blocks progress, one agent pulls
 over to a reachable clear floor point and then returns to its destination.
@@ -58,10 +62,15 @@ elapsed time, turns toward the next leg, and still never rounds a corner
 through furniture. Agents retain their identity across polls and retargets.
 
 When a previously displayed session goes offline, expires, or stops, its avatar
-waits through a 4-second reconnect grace period, says goodbye for 1.8 seconds,
+waits through a 4-second reconnect grace period and a fresh repeat confirmation
+that it is still missing, says goodbye for 1.8 seconds,
 and takes the shortest safe route to either front
 corner exit. Departures are not counted as connected or assigned a desk.
-Reconnecting cancels the departure; failed polls leave the roster alone.
+Reconnecting cancels the departure and immediately invalidates departure-owned
+labels, even if rendering is paused or a slot is reused. Responses older than
+one polling interval are rejected; failed/late polls leave the roster alone
+and cannot confirm a goodbye. A genuine exit route can pass desks on its way
+out, but connected desk/lounge travel never produces a farewell.
 The snapshot endpoint optionally accepts repeated `presence=<session-id>`
 parameters (up to 64 unique valid IDs) and returns only booleans for those
 requested IDs, using the same fresh-heartbeat scan before the top-16 limit.
@@ -78,8 +87,13 @@ visible, and farewells take precedence; no prompts, tool arguments, or inferred
 task outcomes are shown.
 
 The gear menu contains exactly Dark Mode, Reduced Motion, Auto Start and Chat
-Bubbles. It supports keyboard focus, Escape/outside-click dismissal, and a
-viewport-bounded popover. Reduced Motion defaults to the OS
+Bubbles as native-checkbox-backed slide switches. Space or Enter toggles a
+focused switch; row labels are clickable. It supports keyboard focus,
+Escape/outside-click dismissal, and a viewport-bounded popover. The popover has
+its own opaque deep-green surface and fallback colors rather than depending
+on `.live-shell` variables across the body portal. Contrast checks parse both
+source and emitted CSS: labels exceed 4.5:1 and borders/focus exceed 3:1.
+Thumb transitions follow effective reduced motion. Reduced Motion defaults to the OS
 `prefers-reduced-motion` setting; existing `system/reduced/full` values remain
 valid, and toggling saves `reduced` or `full`. Reduced
 mode hides travel, fixes status bubble anchors and disables bobbing/decorative
@@ -100,3 +114,9 @@ one allow-listed preference. A bounded cross-process lock serializes atomic
 read-modify-write updates, preserving other fields even across independent
 providers. Lock contention is reported instead of dropping a write. Observation
 endpoints remain read-only.
+
+On every fresh load, the live clock samples the browser's local `Date`, including
+minutes/seconds; the header and scene lighting share that origin. The existing
+240-second decorative day continues at the same speed. The clock button still
+previews six hours at a time; its fourth press returns to a fresh local-time
+sample without resetting agent movement. This does not change theme preferences.

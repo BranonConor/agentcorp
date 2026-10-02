@@ -1,4 +1,23 @@
 export const DAY_LENGTH_SECONDS = 240;
+export const DEFAULT_DAY_FRACTION = 0.35;
+
+export type OfficeClock = { offset: number; previewSteps: number; simulationSeconds: number };
+
+export function localDayFraction(now = new Date()): number {
+  if (!Number.isFinite(now.getTime())) throw new RangeError("Office clock requires a valid local date.");
+  return (now.getHours() * 3600 + now.getMinutes() * 60 + now.getSeconds() + now.getMilliseconds() / 1000) / 86_400;
+}
+
+export function createOfficeClock(now = new Date()): OfficeClock {
+  return { offset: localDayFraction(now) - DEFAULT_DAY_FRACTION, previewSteps: 0, simulationSeconds: 0 };
+}
+
+export function previewOfficeClock(clock: OfficeClock, now = new Date()) {
+  clock.previewSteps = (clock.previewSteps + 1) % 4;
+  clock.offset = clock.previewSteps === 0 ?
+    localDayFraction(now) - DEFAULT_DAY_FRACTION - clock.simulationSeconds / DAY_LENGTH_SECONDS :
+    clock.offset + 0.25;
+}
 
 export type Daylight = {
   time: number;
@@ -34,7 +53,7 @@ function blendColor(a: number, b: number, mix: number): number {
 }
 
 export function sampleDaylight(simulationSeconds: number, previewOffset = 0): Daylight {
-  const time = (((simulationSeconds / DAY_LENGTH_SECONDS + 0.35 + previewOffset) % 1) + 1) % 1;
+  const time = (((simulationSeconds / DAY_LENGTH_SECONDS + DEFAULT_DAY_FRACTION + previewOffset) % 1) + 1) % 1;
   const index = Math.max(0, keys.findIndex((key) => key.time >= time));
   const end = keys[Math.max(index, 1)];
   const start = keys[Math.max(index - 1, 0)];

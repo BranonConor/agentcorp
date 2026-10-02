@@ -5,7 +5,7 @@ import type { Agent, Point } from "../game/simulation";
 import { arrangeObservation, type Member } from "./observation-layout";
 import { moveObservationAgent } from "./observation-movement";
 
-export type Departure = { member: Member; agent: Agent; phrase: string; graceLeft: number; farewellLeft: number; anchor: Point };
+export type Departure = { member: Member; agent: Agent; phrase: string; graceLeft: number; farewellLeft: number; anchor: Point; confirmedMissing: boolean };
 export type OfficeRoster = { members: Member[]; agents: Agent[]; departures: Departure[] };
 export const FAREWELL_SECONDS = 1.8;
 export const RECONNECT_GRACE_SECONDS = 4;
@@ -43,7 +43,7 @@ export function reconcileOffice(
   const leaving = previous.members.flatMap((member, index) =>
     !incomingIds.has(member.id) && presence?.[member.id] === false && previous.agents[index].x !== 100 ?
       [{ member, agent: previous.agents[index], phrase: index % 2 ? "See you later!" : "Have a nice day!",
-        graceLeft: RECONNECT_GRACE_SECONDS, farewellLeft: FAREWELL_SECONDS,
+        graceLeft: RECONNECT_GRACE_SECONDS, farewellLeft: FAREWELL_SECONDS, confirmedMissing: false,
         anchor: { x: previous.agents[index].x, z: previous.agents[index].z } }] : []);
   if (incoming.length + departures.length + leaving.length > MAX_TRACKED_AGENTS) {
     throw new Error("Too many departing agents; waiting for the exits to clear.");
@@ -54,6 +54,7 @@ export function reconcileOffice(
     [...previous.agents.slice(0, previous.members.length), ...reconnecting.map(departure => departure.agent)],
     incoming,
   );
+  for (const departure of departures) departure.confirmedMissing = true;
   for (const departure of leaving) {
     departure.agent.taskId = undefined;
     departure.agent.route = [];
@@ -82,6 +83,7 @@ export function advanceDepartures(roster: OfficeRoster, delta: number, movementH
       changed ||= departure.graceLeft === 0;
       return true;
     }
+    if (!departure.confirmedMissing) return true;
     if (departure.agent.navigationBlocked) return true;
     if (departure.farewellLeft > 0) {
       departure.farewellLeft = Math.max(0, departure.farewellLeft - delta);
@@ -98,7 +100,7 @@ export function advanceDepartures(roster: OfficeRoster, delta: number, movementH
 }
 
 export function advanceOffice(roster: OfficeRoster, traffic: OfficeTraffic, delta: number, reduced = false) {
-  const paused = new Set(roster.departures.filter(departure => departure.graceLeft > 0 || departure.farewellLeft > 0)
+  const paused = new Set(roster.departures.filter(departure => !departure.confirmedMissing || departure.graceLeft > 0 || departure.farewellLeft > 0)
     .map(departure => departure.agent));
   const admitted = traffic.step(roster.agents, delta, agent => !paused.has(agent), reduced);
   const removed = advanceDepartures(roster, delta, true);

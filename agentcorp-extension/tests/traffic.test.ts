@@ -134,6 +134,7 @@ test("unshown queued arrivals disappear quietly; admitted arrivals complete grac
   advanceOffice(roster, traffic, 1 / 30);
   roster = reconcileOffice(roster, [], { "arrival-0": false, "arrival-1": false, "arrival-2": false });
   assert.equal(roster.departures.length, 2);
+  roster = reconcileOffice(roster, [], { "arrival-0": false, "arrival-1": false });
   for (let i = 0; i < 900 && roster.departures.length; i++) {
     const before = new Map(roster.agents.map(agent => [agent, point(agent)]));
     advanceOffice(roster, traffic, 1 / 30);
@@ -181,6 +182,7 @@ test("toggling reduced motion mid-travel, sitting and departure never strands th
   for (let i = 0; i < 20; i++) advanceOffice(roster, traffic, 1 / 30, true);
   assert.deepEqual(agentPosition(roster.agents[4]), roster.agents[4].target);
   roster = reconcileOffice(roster, [], Object.fromEntries(roster.members.map(member => [member.id, false])));
+  roster = reconcileOffice(roster, [], Object.fromEntries(roster.departures.map(departure => [departure.member.id, false])));
   for (let i = 0; i < 3000 && roster.agents.length; i++) {
     const before = new Map(roster.agents.map(agent => [agent, point(agent)]));
     const physical = new Map(roster.agents.map(agent => [agent, agentPosition(agent)]));

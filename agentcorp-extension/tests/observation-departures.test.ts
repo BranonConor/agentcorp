@@ -51,6 +51,7 @@ test("disconnected agents farewell once, traverse safe exits and are removed wit
   assert.equal(scene.progress.capacity, 0);
   assert.equal(roster.members.length, 0);
   assert.equal(roster.departures.length, 16);
+  roster = reconcileOffice(roster, [], presenceFor(roster));
   assert.deepEqual(roster.agents.map(agentPosition), originalPositions);
   for (const departure of roster.departures) {
     assert.match(departure.phrase, /^(Have a nice day!|See you later!)$/);
@@ -113,6 +114,7 @@ test("reconnection during farewell, standing or exit walking cancels departure w
     sync(scene, roster);
     const original = roster.agents[4];
     const remaining = incoming.filter(({ id }) => id !== "session-4");
+    roster = reconcileOffice(roster, remaining, presenceFor(roster, remaining.map(({ id }) => id)));
     roster = reconcileOffice(roster, remaining, presenceFor(roster, remaining.map(({ id }) => id)));
     sync(scene, roster);
     for (let frame = 0; frame < ticks; frame++) advanceDepartures(roster, 1 / 30);

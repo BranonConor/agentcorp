@@ -14,6 +14,7 @@ process.env.COPILOT_HOME = folder;
 const { shouldRegister } = await import(pathToFileURL(join(installed, "provider-selection.mjs")).href);
 const { startServer } = await import(pathToFileURL(join(installed, "viewer-server.mjs")).href);
 const { heartbeat, dataDir } = await import(pathToFileURL(join(installed, "observations.mjs")).href);
+const { autoOpenCanvas } = await import(pathToFileURL(join(installed, "auto-open.mjs")).href);
 
 test("standalone extension folder serves only packaged assets and sanitized local status", async t => {
   const manifest = JSON.parse(await readFile(join(installed, "copilot-extension.json"), "utf8"));
@@ -86,6 +87,41 @@ test("standalone extension folder serves only packaged assets and sanitized loca
   } finally {
     await new Promise<void>((done, reject) => server.close((error?: Error) => error ? reject(error) : done()));
   }
+});
+
+test("standalone auto-open reads user settings from COPILOT_HOME and records startup outside the package", async () => {
+  const calls: (string | { canvasId: string; instanceId: string })[] = [];
+  const session = {
+    sessionId: "portable",
+    workspacePath: join(folder, "session-state", "portable"),
+    capabilities: { ui: { canvases: true } },
+    rpc: {
+      canvas: {
+        async listOpen() {
+          calls.push("list");
+          return { openCanvases: [] };
+        },
+        async open(input: { canvasId: string; instanceId: string }) {
+          calls.push(input);
+          return input;
+        },
+      },
+    },
+  };
+  assert.equal(await autoOpenCanvas(session), "disabled");
+  assert.deepEqual(calls, []);
+  await mkdir(join(installed, "artifacts"));
+  await writeFile(join(installed, "artifacts", "settings.json"), '{"autoOpen":true}');
+  assert.equal(await autoOpenCanvas(session), "opened");
+  assert.deepEqual(calls, ["list", {
+    canvasId: "agentcorp-observer",
+    instanceId: "office-startup",
+  }]);
+  assert.deepEqual(await readdir(join(installed, "artifacts")), ["settings.json"]);
+  assert.deepEqual(await readdir(join(session.workspacePath, "files")), ["agentcorp-auto-open-portable.json"]);
+  calls.length = 0;
+  assert.equal(await autoOpenCanvas(session), "already-handled");
+  assert.deepEqual(calls, []);
 });
 
 test.after(async () => { await rm(folder, { recursive: true, force: true }); });

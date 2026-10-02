@@ -1,8 +1,8 @@
-import { mkdir, open, readFile, rename, rm, writeFile } from "node:fs/promises";
+import { mkdir, readFile, rename, rm, writeFile } from "node:fs/promises";
 import { randomUUID } from "node:crypto";
 import { dirname, join } from "node:path";
-import { setTimeout as delay } from "node:timers/promises";
 import { readSettings, settingsPath, validateSettings } from "./auto-open.mjs";
+import { claimPreferenceLock } from "./preference-lock.mjs";
 
 export const motionPath = join(dirname(settingsPath), "viewer-preferences.json");
 export function validateMotion(value) {
@@ -45,26 +45,12 @@ export function validatePreferenceUpdate(value) {
   throw new Error("Unknown office preference.");
 }
 
-async function claimPreferenceLock() {
-  const path = join(dirname(settingsPath), "viewer-preferences.lock");
-  for (let attempt = 0; attempt < 100; attempt++) {
-    try {
-      const lock = await open(path, "wx", 0o600);
-      return async () => { await lock.close(); await rm(path); };
-    } catch (error) {
-      if (error?.code !== "EEXIST") throw error;
-      await delay(20);
-    }
-  }
-  throw new Error("Office preferences are locked by another update; try again or check viewer-preferences.lock.");
-}
-
 export async function savePreference(value) {
   const update = validatePreferenceUpdate(value);
   const autoOpen = Object.hasOwn(update, "autoOpen");
   const path = autoOpen ? settingsPath : motionPath;
   await mkdir(dirname(path), { recursive: true, mode: 0o700 });
-  const release = await claimPreferenceLock();
+  const release = await claimPreferenceLock(dirname(path));
   try {
     // Read-modify-write under a cross-process lock so independent canvas providers cannot lose fields.
     await readPreferences();

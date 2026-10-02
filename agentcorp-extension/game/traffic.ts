@@ -1,4 +1,4 @@
-import { LIVE_AGENT_CLEARANCE, walkingDestination } from "./live-layout";
+import { isLoungeSeat, LIVE_AGENT_CLEARANCE, walkingDestination } from "./live-layout";
 import { LIVE_WALK_BOUNDS, liveNavigation } from "./live-navigation";
 import type { Navigation, Obstacle } from "./navigation";
 import type { Agent, Point } from "./simulation";
@@ -33,19 +33,32 @@ function pathsOverlap(a: readonly Point[], b: readonly Point[]): boolean {
   return false;
 }
 
-const body = (agent: Agent): Obstacle => {
+const occupiedPath = (agent: Agent): Point[] => {
   const position = agentPosition(agent);
+  const mustStand = agent.seating && (agent.seating.blend < 1 || agent.route.length > 0 ||
+    agent.taskId !== undefined || !same(agent.seating.position, agent.target));
+  // A waiting sitter still owns its way out; another arrival must not block that approach.
+  return [position, mustStand ? copy(agent) : position];
+};
+const body = (agent: Agent): Obstacle => {
+  const [from, to] = occupiedPath(agent);
   return {
     id: `agent-${agent.id}`,
-    minX: position.x - LIVE_AGENT_CLEARANCE.x - GAP, maxX: position.x + LIVE_AGENT_CLEARANCE.x + GAP,
-    minZ: position.z - LIVE_AGENT_CLEARANCE.z - GAP, maxZ: position.z + LIVE_AGENT_CLEARANCE.z + GAP,
+    minX: Math.min(from.x, to.x) - LIVE_AGENT_CLEARANCE.x - GAP, maxX: Math.max(from.x, to.x) + LIVE_AGENT_CLEARANCE.x + GAP,
+    minZ: Math.min(from.z, to.z) - LIVE_AGENT_CLEARANCE.z - GAP, maxZ: Math.max(from.z, to.z) + LIVE_AGENT_CLEARANCE.z + GAP,
   };
 };
-const reservedPath = (agent: Agent) => [agentPosition(agent), agent, ...agent.route];
+const journey = (agent: Agent, route: readonly Point[], seat?: Point) =>
+  [agentPosition(agent), copy(agent), ...route, ...(seat ? [seat] : [])];
+const seatDestination = (agent: Agent) => agent.taskId === undefined && isLoungeSeat(agent.target) ? copy(agent.target) : undefined;
+const interactionComplete = (agent: Agent, seat?: Point) => seat ?
+  agent.seating?.blend === 1 && same(agent.seating.position, seat) : !agent.seating;
+const atRest = (agent: Agent) => !agent.route.length && same(agent, walkingDestination(agent.target)) &&
+  interactionComplete(agent, seatDestination(agent));
 const routeLength = (from: Point, route: readonly Point[]) =>
   route.reduce((sum, point, i) => sum + Math.hypot(point.x - (route[i - 1] ?? from).x, point.z - (route[i - 1] ?? from).z), 0);
 
-type Reservation = { target: Point; route: Point[] };
+type Reservation = { target: Point; route: Point[]; seat?: Point };
 
 /** Reserve disjoint swept routes, not just this frame's positions. Conflicting traffic waits its turn. */
 export class OfficeTraffic {
@@ -70,7 +83,7 @@ export class OfficeTraffic {
     if (this.priority && !agents.includes(this.priority)) this.priority = undefined;
     for (const [agent, reservation] of this.reservations) {
       if (!agents.includes(agent) || !canMove(agent) || !same(agent.target, reservation.target) ||
-        agent.route !== reservation.route || !agent.route.length) {
+        agent.route !== reservation.route || (!agent.route.length && interactionComplete(agent, reservation.seat))) {
         this.reservations.delete(agent);
         this.planIn = 0;
       }
@@ -81,8 +94,9 @@ export class OfficeTraffic {
         .filter(entry => entry.route !== null)
         .sort((a, b) => routeLength(a.point, a.route!) - routeLength(b.point, b.route!));
       const free = entrances.find(({ point }) =>
-        visible().every(other => !sweptAgentsOverlap(point, point, agentPosition(other), agentPosition(other))) &&
-        [...this.reservations.keys()].every(other => !pathsOverlap([point, point], reservedPath(other))));
+        visible().every(other => !pathsOverlap([point, point], occupiedPath(other))) &&
+        [...this.reservations].every(([other, reservation]) =>
+          !pathsOverlap([point, point], journey(other, other.route, reservation.seat))));
       if (free) {
         admitted = true;
         agent.x = free.point.x; agent.z = free.point.z;
@@ -99,13 +113,13 @@ export class OfficeTraffic {
     for (const agent of visible()) {
       if (!canMove(agent) || agent.navigationBlocked) { agent.velocity = 0; continue; }
       const reservation = this.reservations.get(agent);
-      const atGoal = same(agent, walkingDestination(agent.target));
-      agent.yielding = !reservation && !atGoal;
-      if (reservation || atGoal) {
+      const resting = atRest(agent);
+      agent.yielding = !reservation && !resting;
+      if (reservation || resting) {
         if (!reservation) agent.route = [];
-        const before = copy(agent);
+        const before = agentPosition(agent);
         moveObservationAgent(agent, delta, reduced);
-        progress ||= !same(before, agent);
+        progress ||= !same(before, agentPosition(agent));
       } else {
         agent.velocity = 0;
         agent.state = "idle";
@@ -119,14 +133,19 @@ export class OfficeTraffic {
 
   private plan(agents: readonly Agent[], canMove: (agent: Agent) => boolean) {
     const pending = agents.filter(agent => canMove(agent) && !agent.navigationBlocked &&
-      !this.reservations.has(agent) && !same(agent, walkingDestination(agent.target)));
+      !this.reservations.has(agent) && !atRest(agent));
     pending.sort((a, b) => Number(b === this.priority) - Number(a === this.priority) || a.id - b.id);
     for (const agent of pending) {
-      const route = this.navigation.route(agent, walkingDestination(agent.target), agents.filter(other => other !== agent).map(body));
-      if (!route || [...this.reservations.keys()].some(other =>
-        pathsOverlap([agentPosition(agent), agent, ...route], reservedPath(other)))) continue;
+      const others = agents.filter(other => other !== agent);
+      const route = this.navigation.route(agent, walkingDestination(agent.target), others.map(body));
+      const seat = seatDestination(agent);
+      if (!route) continue;
+      const path = journey(agent, route, seat);
+      if (others.some(other => pathsOverlap(path, occupiedPath(other))) ||
+        [...this.reservations].some(([other, reservation]) =>
+          pathsOverlap(path, journey(other, other.route, reservation.seat)))) continue;
       agent.route = route;
-      this.reservations.set(agent, { target: copy(agent.target), route });
+      this.reservations.set(agent, { target: copy(agent.target), route, seat });
       if (this.priority === agent) this.priority = undefined;
     }
     if (this.reservations.size || !pending.length) return;
@@ -134,9 +153,9 @@ export class OfficeTraffic {
     for (const waiting of pending) {
       const route = this.navigation.route(waiting, walkingDestination(waiting.target));
       if (!route) continue;
-      const path = [waiting, ...route];
+      const path = journey(waiting, route, seatDestination(waiting));
       const blockers = agents.filter(other => other !== waiting && canMove(other) &&
-        pathsOverlap(path, [agentPosition(other), agentPosition(other)]));
+        pathsOverlap(path, occupiedPath(other)));
       for (const blocker of blockers) {
         const others = agents.filter(other => other !== blocker);
         const bays = this.bays.filter(point => Math.hypot(point.x - blocker.x, point.z - blocker.z) > 0.7 &&
@@ -145,7 +164,7 @@ export class OfficeTraffic {
         bays.sort((a, b) => Math.hypot(a.x - blocker.x, a.z - blocker.z) - Math.hypot(b.x - blocker.x, b.z - blocker.z));
         for (const bay of bays) {
           const detour = this.navigation.route(blocker, bay, others.map(body));
-          if (!detour) continue;
+          if (!detour || others.some(other => pathsOverlap(journey(blocker, detour), occupiedPath(other)))) continue;
           blocker.route = detour;
           this.reservations.set(blocker, { target: copy(blocker.target), route: detour });
           this.priority = waiting;

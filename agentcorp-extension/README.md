@@ -60,6 +60,11 @@ Body clearance includes seated positions and the sit/stand sweep. Planning
 is throttled to 0.3-second intervals; movement accelerates and brakes using
 elapsed time, turns toward the next leg, and still never rounds a corner
 through furniture. Agents retain their identity across polls and retargets.
+Seat reservations include the physical seat, not just its walking approach, and
+remain held until the sit/stand interaction finishes. A sitter waiting to leave
+also retains clearance to its approach so a replacement cannot block it in.
+The full 16-agent polling/compaction regression checks every physical swept
+pair, including intermediate seat transfers rather than only final positions.
 
 When a previously displayed session goes offline, expires, or stops, its avatar
 waits through a 4-second reconnect grace period and a fresh repeat confirmation
@@ -110,9 +115,26 @@ Start uses its shared reader and validation without changing panel markers.
 Preferences save only on explicit interaction; unknown/failed loads disable
 the controls and errors retain the last saved values. `/api/preferences`
 accepts only GET and same-origin PUT with a 256-byte JSON body changing exactly
-one allow-listed preference. A bounded cross-process lock serializes atomic
-read-modify-write updates, preserving other fields even across independent
-providers. Lock contention is reported instead of dropping a write. Observation
+one allow-listed preference. Atomic read-modify-write updates use a process-owned
+loopback mutex: a stable port in 20000-39999 is derived from the canonical
+settings directory. The OS releases it on process death; connections are
+immediately destroyed, and endpoint contention fails explicitly after bounded
+retries (it never permits unlocked writes).
+
+A compatibility marker is published by hard-linking completely written owner
+metadata. Recovery of known abandoned markers happens only while holding the
+kernel mutex, so competing recoverers cannot unlink a newly acquired writer.
+A crash before publication leaves no ambiguous shared marker. No age threshold
+is used to steal locks from slow live writers. Tests in
+`tests/preference-lock.test.ts` kill the real fixture owner in
+`tests/fixtures/preference-lock-owner.mjs` at kernel acquisition, partial
+metadata preparation, and marker publication; they also cover concurrent
+recoverers, live contention and connected clients.
+
+Legacy empty or unrecognized `viewer-preferences.lock` files cannot prove that
+an old provider has stopped. They fail closed. Stop **all** old extension
+providers first, then remove only that lock file from the extension's artifacts
+directory and restart; do not remove either saved preferences file. Observation
 endpoints remain read-only.
 
 The observer clock samples the browser's current local `Date` for each visible

@@ -74,6 +74,18 @@ Updates preserve other fields and serialize across providers. Read/save errors
 are shown rather than silently resetting values; observation/heartbeat APIs
 remain read-only.
 
+Preference writes use a loopback-only process-owned mutex which the OS releases
+on process death, plus a compatibility marker with atomically published owner
+metadata. A new provider safely recovers an abandoned current-version marker;
+slow live writers are never displaced based on elapsed time. An unrelated
+service occupying the mutex port causes a bounded explicit error, not an
+unlocked save.
+
+An empty or unrecognized legacy `artifacts/viewer-preferences.lock` cannot be
+recovered automatically without risking an old active writer. If this error is
+reported, stop all old extension providers, remove **only** that lock file, then
+restart. Keep `settings.json` and `viewer-preferences.json` intact.
+
 The observer clock and scene lighting continuously follow the computer's current
 local time, catching up after backgrounding, sleep, timezone or clock changes.
 Six-hour previews remain temporary offsets from real time; the fourth click

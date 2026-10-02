@@ -9,6 +9,10 @@ local `agentcorp-harness` source at
 selection and automatic local heartbeat discovery. No harness checkout, Vite
 server or `node_modules` is needed by the installed package.
 
+The runtime `.mjs` files are maintained directly in the installable folder;
+only the viewer assets are generated. Startup auto-open is opt-in; see the
+[settings guide](../.github/extensions/agentcorp-extension/README.md#automatically-open-the-office).
+
 From this directory:
 
 ```sh
@@ -27,6 +31,10 @@ does not expose files outside `viewer/`, and returns only fresh, sanitized,
 at-most-16-session snapshots with an aggregate overflow count. Observer
 layout tests also keep scene identity stable when those sessions change
 priority or leave the visible office.
+Auto-open tests cover settings validation, canvas capability gating, durable
+once-per-session startup, concurrency and RPC retries. The standalone package
+test also verifies settings lookup under `COPILOT_HOME` and keeps startup records
+in the session workspace rather than the installed package.
 
 Live movement uses a visibility graph around the furniture footprints shared
 with the renderer (including all 16 desks, chairs, sofas, dividers and floor

@@ -5,7 +5,7 @@ import "../live.css";
 import "../observe.css";
 import { Simulation, initialProgress } from "../game/simulation";
 import { MAX_LIVE_DESKS, MIN_LIVE_DESKS } from "../game/live-layout";
-import { createOfficeClock, previewOfficeClock, sampleDaylight } from "../game/lighting";
+import { createOfficeClock, previewOfficeClock, sampleOfficeClock } from "../game/lighting";
 import { AGENTCORP_LETTERS, AGENTCORP_MARK, AGENTCORP_WORDMARK } from "../game/sprite-art";
 import { createWorld } from "../game/world";
 import { assertFreshObservation, newAgent, OBSERVATION_POLL_MS, type Member } from "./observation-layout";
@@ -58,7 +58,7 @@ function Office() {
   const [bubbles, setBubbles] = useState<OfficeBubble[]>([]);
   const [initialClock] = useState(() => createOfficeClock());
   const clock = useRef(initialClock);
-  const [daylight, setDaylight] = useState(() => sampleDaylight(0, initialClock.offset));
+  const [daylight, setDaylight] = useState(() => sampleOfficeClock(initialClock));
   const [legacyTheme] = useState(() => {
     try {
       const saved = localStorage.getItem(themeKey);
@@ -156,7 +156,6 @@ function Office() {
   }, [panelOpen]);
   const previewLight = () => {
     previewOfficeClock(clock.current);
-    setDaylight(sampleDaylight(clock.current.simulationSeconds, clock.current.offset));
   };
   useEffect(() => {
     if (!host.current) return;
@@ -276,7 +275,7 @@ function Office() {
     let frameId = 0;
     let last = performance.now();
     let remainder = 0;
-    let clockLabel = sampleDaylight(0, clock.current.offset).label;
+    let clockLabel = "";
     const frame = (now: number) => {
       remainder += Math.min((now - last) / 1000, 0.2);
       last = now;
@@ -288,13 +287,12 @@ function Office() {
           scene.time += STEP;
           remainder -= STEP; advanced = true;
         }
-        clock.current.simulationSeconds = scene.time;
-        const currentDaylight = sampleDaylight(scene.time, clock.current.offset);
+        const currentDaylight = sampleOfficeClock(clock.current);
         if (currentDaylight.label !== clockLabel) {
           clockLabel = currentDaylight.label;
           setDaylight(currentDaylight);
         }
-        world.current?.render(now / 1000, clock.current.offset, remainder / STEP, advanced);
+        world.current?.render(now / 1000, clock.current.previewSteps / 4, remainder / STEP, advanced, currentDaylight);
         const activeBubbles = syncBubbles();
         setTrafficError(traffic.error);
         activeBubbles.forEach(bubble => {

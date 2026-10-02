@@ -74,7 +74,8 @@ Updates preserve other fields and serialize across providers. Read/save errors
 are shown rather than silently resetting values; observation/heartbeat APIs
 remain read-only.
 
-The office clock starts at the computer's local time on each fresh load and
-shares that start with scene lighting. Its existing accelerated decorative day
-continues unchanged. Four six-hour preview clicks return to a fresh local-time
-sample; clock controls do not change Dark Mode or other preferences.
+The observer clock and scene lighting continuously follow the computer's current
+local time, catching up after backgrounding, sleep, timezone or clock changes.
+Six-hour previews remain temporary offsets from real time; the fourth click
+returns to current local time. Agent movement speed, Dark Mode and other
+preferences are unchanged.

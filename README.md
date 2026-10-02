@@ -79,9 +79,10 @@ viewer ports. Reduced motion follows the OS until explicitly toggled; Chat
 Bubbles defaults on, and switching it off hides speech without interrupting
 arrivals, reconnect grace or departures. Auto Start affects future session
 startup, not the currently open panel.
-The clock starts at local computer time on each load; the existing accelerated
-decorative day and six-hour previews continue from that shared clock/lighting
-origin. The fourth preview returns to a fresh local-time sample.
+The observer clock and lighting continuously follow local computer time,
+including after sleep or backgrounding. Six-hour previews are temporary offsets
+from real time; the fourth preview returns to current local time. Agent movement
+keeps its normal speed.
 
 Click an agent in the office or select its full Observed agents row to focus
 the camera. Rows work with Enter and Space; selecting the same row again

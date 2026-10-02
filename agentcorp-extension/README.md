@@ -115,8 +115,10 @@ read-modify-write updates, preserving other fields even across independent
 providers. Lock contention is reported instead of dropping a write. Observation
 endpoints remain read-only.
 
-On every fresh load, the live clock samples the browser's local `Date`, including
-minutes/seconds; the header and scene lighting share that origin. The existing
-240-second decorative day continues at the same speed. The clock button still
-previews six hours at a time; its fourth press returns to a fresh local-time
-sample without resetting agent movement. This does not change theme preferences.
+The observer clock samples the browser's current local `Date` for each visible
+frame. The header and lighting consume that same sample, independent of movement
+simulation time. Sleep/resume, timezone/DST and system-clock changes are reflected
+on the next frame rather than extrapolated from a cached origin. Six-hour
+previews are temporary offsets from real wall time; the fourth press resets the
+offset to zero. Agent/lifecycle speeds and explicit theme preferences are
+unchanged. The non-observer demo retains its independent 240-second day.

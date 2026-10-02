@@ -1,22 +1,23 @@
 export const DAY_LENGTH_SECONDS = 240;
 export const DEFAULT_DAY_FRACTION = 0.35;
 
-export type OfficeClock = { offset: number; previewSteps: number; simulationSeconds: number };
+export type OfficeClock = { previewSteps: number };
 
 export function localDayFraction(now = new Date()): number {
   if (!Number.isFinite(now.getTime())) throw new RangeError("Office clock requires a valid local date.");
   return (now.getHours() * 3600 + now.getMinutes() * 60 + now.getSeconds() + now.getMilliseconds() / 1000) / 86_400;
 }
 
-export function createOfficeClock(now = new Date()): OfficeClock {
-  return { offset: localDayFraction(now) - DEFAULT_DAY_FRACTION, previewSteps: 0, simulationSeconds: 0 };
+export function createOfficeClock(): OfficeClock {
+  return { previewSteps: 0 };
 }
 
-export function previewOfficeClock(clock: OfficeClock, now = new Date()) {
+export function previewOfficeClock(clock: OfficeClock) {
   clock.previewSteps = (clock.previewSteps + 1) % 4;
-  clock.offset = clock.previewSteps === 0 ?
-    localDayFraction(now) - DEFAULT_DAY_FRACTION - clock.simulationSeconds / DAY_LENGTH_SECONDS :
-    clock.offset + 0.25;
+}
+
+export function sampleOfficeClock(clock: OfficeClock, now = new Date()): Daylight {
+  return sampleDaylight(0, localDayFraction(now) + clock.previewSteps / 4 - DEFAULT_DAY_FRACTION);
 }
 
 export type Daylight = {

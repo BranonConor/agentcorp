@@ -7,7 +7,7 @@ import {
   LIVE_DIVIDER_WIDTH, LIVE_DIVIDER_X, LIVE_LAMP, LIVE_PLANTS, LIVE_SOFA, LIVE_STACKS,
   LIVE_LOUNGE_SOFA_X, LIVE_ROOM, LIVE_RUG_X, PLANT_FOOTPRINT, STACK_FOOTPRINT, deskPropsFor,
 } from "./live-layout";
-import { sampleDaylight } from "./lighting";
+import { sampleDaylight, type Daylight } from "./lighting";
 import { agentPosition, interpolatePosition } from "./animation";
 import {
   agentArt, agentCorpNeonArt, bookcaseArt, chairArt, chatRoomTitleArt,
@@ -326,7 +326,7 @@ export type World = {
   setReducedMotion: (reduced: boolean) => void;
   projectPosition: (point: Point) => { x: number; y: number } | null;
   capturePositions: () => void;
-  render: (elapsed: number, previewOffset: number, alpha: number, advanced: boolean) => void;
+  render: (elapsed: number, previewOffset: number, alpha: number, advanced: boolean, observerDaylight?: Daylight) => void;
   focusAgent: (index: number | null) => void;
   setAgentPersona: (index: number, persona: number) => void;
   projectDesk: (index: number) => { x: number; y: number } | null;
@@ -1142,7 +1142,7 @@ export function createWorld(host: HTMLElement, simulation: Simulation, variant: 
       const position = agent && agentPosition(agent);
       return position && position.x < 50 ? projectPoint(position.x, 1.15, position.z) : null;
     },
-    render(elapsed: number, previewOffset: number, alpha: number, advanced: boolean) {
+    render(elapsed: number, previewOffset: number, alpha: number, advanced: boolean, observerDaylight?: Daylight) {
       const now = performance.now() / 1000;
       const frameDelta = Math.max(0, Math.min(0.05, now - lastRenderTime));
       lastRenderTime = now;
@@ -1153,7 +1153,7 @@ export function createWorld(host: HTMLElement, simulation: Simulation, variant: 
       }
       lastPreviewOffset = previewOffset;
       lastRoomKey = roomKey;
-      const light = sampleDaylight(simulation.time, previewOffset);
+      const light = isLive && observerDaylight ? observerDaylight : sampleDaylight(simulation.time, previewOffset);
       const direct = light.sun + light.moon;
       const moonShare = direct > 0 ? light.moon / direct : 0;
       const moonStrength = light.moon / 0.45;

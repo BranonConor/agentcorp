@@ -6,7 +6,7 @@ import { join } from "node:path";
 
 const directory = await mkdtemp(join(tmpdir(), "agentcorp-observer-"));
 process.env.COPILOT_HOME = directory;
-const { heartbeat, snapshot, clearHeartbeat, dataDir, MAX_DESKS, EXPIRY_MS } =
+const { heartbeat, snapshot, clearHeartbeat, dataDir, MAX_DESKS, MAX_PRESENCE_IDS, EXPIRY_MS, validPresenceIds } =
   await import("../../.github/extensions/agentcorp-extension/observations.mjs");
 const now = 100_000;
 
@@ -132,6 +132,41 @@ test("five live sessions are all visible without an overflow indicator", async (
     ],
     overflow: 0,
   });
+});
+
+test("presence checks distinguish overflow displacement from disconnects without exposing other IDs or fields", async () => {
+  for (let index = 0; index < 18; index++) await heartbeat(`busy-${index}`, "tool", "private-owner", now);
+  await heartbeat("previously-visible", "idle", "private-owner", now);
+  await heartbeat("offline", "offline", "private-owner", now);
+  await heartbeat("expired", "tool", "private-owner", now - EXPIRY_MS - 1);
+  const before = await readFile(join(dataDir, "heartbeat-previously-visible.json"), "utf8");
+  const ids = ["previously-visible", "offline", "expired", "missing"];
+  const result = await snapshot("root", now, ids);
+  assert.equal(result.sessions.length, 16);
+  assert.equal(result.overflow, 3);
+  assert.deepEqual(result.presence, { "previously-visible": true, offline: false, expired: false, missing: false });
+  assert.doesNotMatch(JSON.stringify(result), /private-owner|owner|\"at\"/);
+  assert.equal(await readFile(join(dataDir, "heartbeat-previously-visible.json"), "utf8"), before);
+  await clearHeartbeat("previously-visible", "private-owner");
+  assert.deepEqual((await snapshot("root", now, ids)).presence, {
+    "previously-visible": false, offline: false, expired: false, missing: false,
+  });
+  await heartbeat("previously-visible", "thinking", "reconnected-owner", now);
+  assert.equal((await snapshot("root", now, ids)).presence?.["previously-visible"], true);
+  assert.equal(Object.hasOwn(await snapshot("root", now), "presence"), false);
+});
+
+test("presence requests validate and bound IDs before reading anything", async () => {
+  assert.deepEqual(validPresenceIds([]), []);
+  const full = Array.from({ length: MAX_PRESENCE_IDS }, (_, index) => `known-${index}`);
+  assert.deepEqual(validPresenceIds(full), full);
+  assert.throws(() => validPresenceIds([...full, "too-many"]), /Invalid presence ID list/);
+  assert.throws(() => validPresenceIds(["same", "same"]), /Invalid presence ID list/);
+  assert.throws(() => validPresenceIds(["../escape"]), /Invalid session ID/);
+  assert.throws(() => validPresenceIds([""]), /Invalid session ID/);
+  assert.throws(() => validPresenceIds([4]), /Invalid session ID/);
+  assert.throws(() => validPresenceIds({}), /Invalid presence ID list/);
+  await assert.rejects(snapshot("root", now, ["../escape"]), /Invalid session ID/);
 });
 
 test("older membership and extension-folder artifacts remain untouched but are not observed", async () => {

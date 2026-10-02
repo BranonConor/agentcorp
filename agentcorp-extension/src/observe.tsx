@@ -3,71 +3,23 @@ import { createRoot } from "react-dom/client";
 import "../app/styles.css";
 import "../live.css";
 import "../observe.css";
-import { Simulation, initialProgress, DESKS, COFFEE_SPOTS, type Agent, type Request } from "../game/simulation";
-import { EXTRA_DESKS, LIVE_COFFEE_Z, MAX_LIVE_DESKS, MIN_LIVE_DESKS, assignLoungeSpots, routeAroundDividers } from "../game/live-layout";
+import { Simulation, initialProgress } from "../game/simulation";
+import { MAX_LIVE_DESKS, MIN_LIVE_DESKS } from "../game/live-layout";
 import { sampleDaylight } from "../game/lighting";
 import { AGENTCORP_LETTERS, AGENTCORP_MARK, AGENTCORP_WORDMARK } from "../game/sprite-art";
 import { createWorld } from "../game/world";
-import { arrangeObservation, newAgent, type Member } from "./observation-layout";
+import { newAgent, type Member } from "./observation-layout";
+import { advanceDepartures, reconcileOffice, type Departure, type OfficeRoster } from "./observation-departures";
+import { moveObservationScene, updateObservationScene } from "./observation-movement";
 import { agentName, agentPersona } from "./room";
 
-type Observation = { root: string; sessions: Member[]; overflow: number };
-const desks = [...DESKS, ...EXTRA_DESKS];
-const coffee = COFFEE_SPOTS.map(({ x }) => ({ x, z: LIVE_COFFEE_Z + 0.75 }));
+type Observation = { root: string; sessions: Member[]; overflow: number; presence?: Record<string, boolean> };
 const STEP = 1 / 30;
 const themeKey = "agentcorp-harness-theme";
 const wordmarkPaths = [...AGENTCORP_WORDMARK].map((letter, index) =>
   AGENTCORP_LETTERS[letter].flatMap((row, y) =>
     [...row].flatMap((bit, x) => bit === "1" ? [`M${index * 6 + x} ${y}h1v1h-1z`] : []),
   ).join(""));
-
-function updateScene(scene: Simulation, members: Member[]) {
-  const count = Math.min(members.length, MAX_LIVE_DESKS);
-  scene.progress.capacity = count;
-  scene.requests = [];
-  const lounge = assignLoungeSpots(members.slice(MIN_LIVE_DESKS, count).map(member => member.phase === "idle"));
-  for (let index = 0; index < count; index++) {
-    const member = members[index];
-    const sprite = scene.agents[index];
-    if (!sprite) throw new Error(`Missing office agent for desk ${index + 1}`);
-    const busy = member.phase !== "idle";
-    const destination = busy ? desks[index] : index < MIN_LIVE_DESKS ? coffee[index] : lounge[index - MIN_LIVE_DESKS];
-    if (!destination) throw new Error(`Missing office destination for desk ${index + 1}`);
-    if (sprite.x === 100) { sprite.x = destination.x; sprite.z = destination.z; }
-    if (sprite.target.x !== destination.x || sprite.target.z !== destination.z) {
-      sprite.route = routeAroundDividers(sprite, destination);
-    }
-    sprite.target = { ...destination };
-    sprite.taskId = busy ? index + 1 : undefined;
-    if (busy) {
-      const status: Request["status"] = member.phase === "blocked" ? "failed" :
-        member.phase === "thinking" ? "assigned" : "working";
-      scene.requests.push({ id: index + 1, stationId: index, title: member.phase,
-        kind: "chat", status, progress: 0, reward: 0,
-        ...(status === "failed" ? { resolvedAt: scene.time } : {}) });
-    }
-  }
-}
-
-function move(scene: Simulation) {
-  for (let index = 0; index < scene.progress.capacity; index++) {
-    const sprite = scene.agents[index];
-    if (sprite.x === 100) continue;
-    const point = sprite.route[0] ?? sprite.target;
-    const distance = Math.hypot(point.x - sprite.x, point.z - sprite.z);
-    const busy = sprite.taskId !== undefined;
-    if (distance > 0.02) {
-      const step = Math.min(distance, 2.05 * STEP);
-      sprite.x += (point.x - sprite.x) / distance * step;
-      sprite.z += (point.z - sprite.z) / distance * step;
-      sprite.state = busy ? "walking" : "returning";
-    } else {
-      sprite.x = point.x; sprite.z = point.z;
-      if (sprite.route.length) sprite.route.shift();
-      sprite.state = sprite.route.length ? "returning" : busy ? "working" : "idle";
-    }
-  }
-}
 
 function Office() {
   const host = useRef<HTMLDivElement>(null);
@@ -80,12 +32,15 @@ function Office() {
   const [state, setState] = useState<Observation | null>(null);
   const [error, setError] = useState("");
   const [sceneError, setSceneError] = useState("");
+  const [navigationError, setNavigationError] = useState("");
   const [themeError, setThemeError] = useState("");
   const [selected, setSelected] = useState("");
   const [panelOpen, setPanelOpen] = useState(false);
   const [hover, setHover] = useState<{ name: string; x: number; y: number } | null>(null);
   const hoverIndex = useRef<number | null>(null);
   const hoverLabel = useRef<HTMLDivElement>(null);
+  const farewellLabels = useRef(new Map<string, HTMLDivElement>());
+  const [departures, setDepartures] = useState<Departure[]>([]);
   const [previewOffset, setPreviewOffset] = useState(0);
   const previewRef = useRef(0);
   const [themePreference, setThemePreference] = useState<"system" | "light" | "dark">(() => {
@@ -169,6 +124,14 @@ function Office() {
     scene.progress.capacity = 0;
     scene.progress.context = false;
     scene.progress.workflow = 1;
+    let roster: OfficeRoster = { members: [], agents: [], departures: [] };
+    const syncRoster = () => {
+      scene.agents = roster.agents;
+      world.current?.capturePositions();
+      [...roster.members, ...roster.departures.map(departure => departure.member)]
+        .forEach((member, index) => world.current?.setAgentPersona(index, agentPersona(member.id)));
+      setDepartures([...roster.departures]);
+    };
     try {
       world.current = createWorld(host.current, scene, "live", {
         onAgentHover(index) {
@@ -208,28 +171,34 @@ function Office() {
       if (refreshing) return;
       refreshing = true;
       try {
-        const response = await fetch("/api/observations", { cache: "no-store" });
+        const query = new URLSearchParams();
+        [...roster.members, ...roster.departures.map(departure => departure.member)]
+          .forEach(member => query.append("presence", member.id));
+        const response = await fetch(`/api/observations?${query}`, { cache: "no-store" });
         if (!response.ok) throw new Error(`Office returned ${response.status}`);
         const next = await response.json() as Observation;
         if (!Array.isArray(next.sessions) || next.sessions.length > MAX_LIVE_DESKS ||
           !Number.isSafeInteger(next.overflow) || next.overflow < 0) throw new Error("Invalid office snapshot");
         if (!active) return;
         const hoveredId = hoverIndex.current === null ? "" : members.current[hoverIndex.current]?.id ?? "";
-        const arranged = arrangeObservation(members.current, scene.agents, next.sessions);
-        members.current = arranged.members;
-        scene.agents = arranged.agents;
-        updateScene(scene, arranged.members);
-        world.current?.capturePositions();
-        arranged.members.forEach((member, index) => world.current?.setAgentPersona(index, agentPersona(member.id)));
+        roster = reconcileOffice(roster, next.sessions, next.presence);
+        members.current = roster.members;
+        scene.agents = roster.agents;
+        const routeErrors = updateObservationScene(scene, roster.members);
+        if (roster.departures.some(departure => departure.agent.navigationBlocked)) {
+          routeErrors.push("No safe exit route; departing agents stopped. Retrying on the next office update.");
+        }
+        setNavigationError(routeErrors.join(" "));
+        syncRoster();
         setState(next);
         setError("");
-        const index = arranged.members.findIndex(member => member.id === selectedRef.current);
+        const index = roster.members.findIndex(member => member.id === selectedRef.current);
         if (selectedRef.current && index < 0) {
           const selectedRowHadFocus = document.activeElement?.matches('.observer-agent-row[aria-pressed="true"]');
           clearSelection();
           if (selectedRowHadFocus) closeButton.current?.focus();
         } else world.current?.focusAgent(index >= 0 ? index : null);
-        const hoveredIndex = arranged.members.findIndex(member => member.id === hoveredId);
+        const hoveredIndex = roster.members.findIndex(member => member.id === hoveredId);
         hoverIndex.current = hoveredId && hoveredIndex >= 0 ? hoveredIndex : null;
         if (hoverIndex.current === null) setHover(null);
         else {
@@ -254,10 +223,22 @@ function Office() {
       if (!document.hidden) {
         while (remainder >= STEP) {
           world.current?.capturePositions();
-          move(scene); scene.time += STEP;
+          moveObservationScene(scene, STEP); scene.time += STEP;
+          if (advanceDepartures(roster, STEP)) syncRoster();
           remainder -= STEP; advanced = true;
         }
         world.current?.render(now / 1000, previewRef.current, remainder / STEP, advanced);
+        roster.departures.forEach((departure, index) => {
+          const label = farewellLabels.current.get(departure.member.id);
+          if (!label) return;
+          const point = world.current?.projectAgent(roster.members.length + index);
+          label.hidden = !point;
+          if (point) {
+            const halfWidth = label.offsetWidth / 2 + 8;
+            label.style.left = `${Math.max(halfWidth, Math.min((host.current?.clientWidth ?? 0) - halfWidth, point.x))}px`;
+            label.style.top = `${Math.max(label.offsetHeight + 24, point.y)}px`;
+          }
+        });
         if (hoverIndex.current !== null && hoverLabel.current) {
           const point = world.current?.projectAgent(hoverIndex.current);
           hoverLabel.current.hidden = !point;
@@ -285,7 +266,7 @@ function Office() {
   const blocked = sessions.filter(member => member.phase === "blocked").length;
   const overflow = state?.overflow ?? 0;
   const moreLabel = `${overflow} more session${overflow === 1 ? "" : "s"}`;
-  const visualError = error || sceneError || themeError;
+  const visualError = error || sceneError || navigationError || themeError;
   const connected = !error && state !== null;
   const statusKind = visualError ? "error" : !state || !live ? "connecting" : "online";
   const statusLabel = visualError ? "Error" : !state ? "Connecting" : live ? "Live" : "No sessions";
@@ -333,6 +314,15 @@ function Office() {
       <section className="world-panel" aria-label="Live Copilot office">
         <div className="world-host" ref={host}>
           {hover && <div ref={hoverLabel} className="agent-hover" style={{ left: hover.x, top: hover.y }}>{hover.name}</div>}
+          {departures.map(departure => <div key={departure.member.id}
+            ref={element => {
+              if (element) farewellLabels.current.set(departure.member.id, element);
+              else farewellLabels.current.delete(departure.member.id);
+            }}
+            className="agent-hover agent-farewell" role="status"
+            aria-label={`${agentName(departure.member.id)} says: ${departure.phrase}`}>
+            {departure.phrase}
+          </div>)}
           <div className="world-callout live-callout" role="status" aria-live="polite">
             <button type="button" className={`office-status-link sdk-${statusKind}`}
               aria-label={`Observation status: ${statusLabel}. Open office overview`}
@@ -371,6 +361,11 @@ function Office() {
               <div className="activity-row-heading"><strong>3D scene</strong>
                 <span className="activity-tag activity-tag-warning">Unavailable</span></div>
               <p>{sceneError} Session observations remain available below.</p>
+            </div>}
+            {navigationError && <div className="activity-row">
+              <div className="activity-row-heading"><strong>Office movement</strong>
+                <span className="activity-tag activity-tag-warning">Stopped</span></div>
+              <p role="alert">{navigationError}</p>
             </div>}
             {themeError && <div className="activity-row">
               <div className="activity-row-heading"><strong>HUD preference</strong>

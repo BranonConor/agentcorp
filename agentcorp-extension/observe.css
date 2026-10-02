@@ -47,6 +47,27 @@
 .observer-shell .observer-agent-row > .activity-tag { align-self: center; }
 .observer-shell .status-idle { background: var(--office-accent-bg); color: var(--office-accent); }
 .observer-shell .world-callout.live-callout { z-index: 3; }
+.observer-shell .agent-farewell {
+  padding: 9px 12px;
+  border-radius: 12px;
+  font-size: 13px;
+  white-space: normal;
+  width: max-content;
+  max-width: min(180px, calc(100% - 32px));
+  text-align: center;
+}
+.observer-shell .agent-farewell::after {
+  content: "";
+  position: absolute;
+  left: calc(50% - 5px);
+  bottom: -6px;
+  width: 9px;
+  height: 9px;
+  background: var(--office-panel);
+  border-right: 1px solid var(--office-border);
+  border-bottom: 1px solid var(--office-border);
+  transform: rotate(45deg);
+}
 .observer-shell button:focus-visible { outline: 2px solid var(--office-accent); outline-offset: 2px; }
 @media (prefers-reduced-motion: reduce) {
   .observer-shell:not(.activity-visible) .top-stats { transition: none; }

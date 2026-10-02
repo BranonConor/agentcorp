@@ -62,6 +62,13 @@ device's `COPILOT_HOME`, in
 Older membership records and `extensions/agentcorp-observer/artifacts` files
 are left intact but are not used for live discovery.
 
+Agents walk around desks, chairs, sofas and other solid furniture, using
+the open aisles rather than crossing through objects. When a previously
+visible session disconnects, its avatar says goodbye and walks to a front
+corner exit before disappearing. A reconnect cancels the departure; being
+displaced by the 16-desk display limit does not trigger a false goodbye.
+Departing avatars are not included in the connected-session counts.
+
 Click an agent in the office or select its full Observed agents row to focus
 the camera. Rows work with Enter and Space; selecting the same row again
 clears focus. Dragging or scrolling the camera, pressing Escape, closing

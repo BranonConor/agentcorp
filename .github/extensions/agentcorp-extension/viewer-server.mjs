@@ -2,7 +2,7 @@ import { createServer } from "node:http";
 import { readFile } from "node:fs/promises";
 import { dirname, extname, resolve, sep } from "node:path";
 import { fileURLToPath } from "node:url";
-import { snapshot } from "./observations.mjs";
+import { snapshot, validPresenceIds } from "./observations.mjs";
 
 const viewer = resolve(dirname(fileURLToPath(import.meta.url)), "viewer");
 const mime = { ".html": "text/html", ".js": "text/javascript", ".css": "text/css", ".svg": "image/svg+xml" };
@@ -15,9 +15,18 @@ export async function startServer(root) {
         response.writeHead(403); response.end(); return;
       }
       if (request.method !== "GET") { response.writeHead(405); response.end(); return; }
-      const path = new URL(request.url ?? "/", `http://127.0.0.1:${address.port}`).pathname;
+      const requestUrl = new URL(request.url ?? "/", `http://127.0.0.1:${address.port}`);
+      const path = requestUrl.pathname;
       if (path === "/api/observations") {
-        const observation = await snapshot(root);
+        let presenceIds;
+        if (requestUrl.searchParams.has("presence")) {
+          try {
+            presenceIds = validPresenceIds(requestUrl.searchParams.getAll("presence"));
+          } catch {
+            response.writeHead(400); response.end("Invalid presence ID list."); return;
+          }
+        }
+        const observation = await snapshot(root, Date.now(), presenceIds);
         response.writeHead(200, { "Content-Type": "application/json", "Cache-Control": "no-store" });
         response.end(JSON.stringify(observation));
         return;

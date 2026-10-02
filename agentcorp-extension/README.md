@@ -27,3 +27,28 @@ does not expose files outside `viewer/`, and returns only fresh, sanitized,
 at-most-16-session snapshots with an aggregate overflow count. Observer
 layout tests also keep scene identity stable when those sessions change
 priority or leave the visible office.
+
+Live movement uses a visibility graph around the furniture footprints shared
+with the renderer (including all 16 desks, chairs, sofas, dividers and floor
+props). Obstacles are expanded for the agent's body and ground depth. Each
+complete segment is checked, and movement stops at each corner before the
+next leg so render interpolation cannot cut through furniture. Desk targets
+remain in the working gap ahead of the chair; sofa targets use a walkable
+front approach followed by a short visual sit/stand transition. Retargeting
+starts at the current position, including during a sit/stand transition.
+Unreachable routes stop the agent and surface an office error, retried on
+the next snapshot; there is no direct-path or teleport fallback. This is
+static-furniture navigation, not agent-to-agent collision avoidance.
+
+When a previously displayed session goes offline, expires, or stops, its avatar
+says goodbye for 1.8 seconds and takes the shortest safe route to either front
+corner exit. Departures are not counted as connected or assigned a desk.
+Reconnecting cancels the departure; failed polls leave the roster alone.
+The snapshot endpoint optionally accepts repeated `presence=<session-id>`
+parameters (up to 64 unique valid IDs) and returns only booleans for those
+requested IDs, using the same fresh-heartbeat scan before the top-16 limit.
+Thus overflow displacement does not trigger a false goodbye. No heartbeat
+writes, freshness changes, or extra private session details are involved.
+Farewells use the existing animation loop rather than per-agent timers;
+an office with 64 retained active/departing avatars reports backpressure
+until exits clear rather than silently discarding a departure.

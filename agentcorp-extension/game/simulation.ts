@@ -28,6 +28,8 @@ export type Agent = {
   workLeft: number;
   workTotal: number;
   visitedContext: boolean;
+  seating?: { position: Point; blend: number };
+  navigationBlocked?: boolean;
 };
 
 export type Progress = {

@@ -30,6 +30,10 @@ export type Agent = {
   visitedContext: boolean;
   seating?: { position: Point; blend: number };
   navigationBlocked?: boolean;
+  arriving?: boolean;
+  yielding?: boolean;
+  velocity?: number;
+  heading?: number;
 };
 
 export type Progress = {

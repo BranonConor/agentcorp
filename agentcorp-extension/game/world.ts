@@ -1,6 +1,6 @@
 import * as THREE from "three";
 import { DESKS } from "./simulation";
-import type { Agent, RequestStatus, Simulation } from "./simulation";
+import type { Agent, Point, RequestStatus, Simulation } from "./simulation";
 import {
   AGENT_SHADOW, CHAIR_SHAPE, DESK_SHAPE, LIVE_BOOKCASE, LIVE_BOOKCASE_XS,
   LIVE_COFFEE_COUNTER, LIVE_COFFEE_Z, LIVE_DESKS, LIVE_DIVIDER_END_Z, LIVE_DIVIDER_START_Z,
@@ -323,6 +323,8 @@ function createAgent(id: number, shadowTexture: THREE.Texture, frames: AgentArt)
 }
 
 export type World = {
+  setReducedMotion: (reduced: boolean) => void;
+  projectPosition: (point: Point) => { x: number; y: number } | null;
   capturePositions: () => void;
   render: (elapsed: number, previewOffset: number, alpha: number, advanced: boolean) => void;
   focusAgent: (index: number | null) => void;
@@ -1099,7 +1101,7 @@ export function createWorld(host: HTMLElement, simulation: Simulation, variant: 
   const observer = new ResizeObserver(resize);
   observer.observe(host);
   resize();
-  const reducedMotion = matchMedia("(prefers-reduced-motion: reduce)").matches;
+  let reducedMotion = matchMedia("(prefers-reduced-motion: reduce)").matches;
   let lastRenderTime = performance.now() / 1000;
   let lastPreviewOffset = 0;
   let lastRoomKey = "";
@@ -1112,6 +1114,8 @@ export function createWorld(host: HTMLElement, simulation: Simulation, variant: 
   };
 
   return {
+    setReducedMotion(reduced) { reducedMotion = reduced; },
+    projectPosition(point) { return point.x < 50 ? projectPoint(point.x, 1.15, point.z) : null; },
     setAgentPersona,
     capturePositions() {
       previousPositions = simulation.agents.map(agentPosition);
@@ -1313,7 +1317,8 @@ export function createWorld(host: HTMLElement, simulation: Simulation, variant: 
       });
       agentMeshes.forEach((model, index) => {
         const agent: Agent = simulation.agents[index];
-        model.group.visible = model.shadow.visible = !!agent;
+        const travelling = agent && (agent.arriving || agent.route.length > 0 || agent.yielding);
+        model.group.visible = model.shadow.visible = !!agent && agent.x < 50 && !(isLive && reducedMotion && travelling);
         if (!agent) return;
         const position = interpolatePosition(previousPositions[index], agentPosition(agent), alpha);
         const seatBlend = isLive ? agent.seating?.blend ?? 0 : 0;
@@ -1330,7 +1335,7 @@ export function createWorld(host: HTMLElement, simulation: Simulation, variant: 
         (model.shadow.material as THREE.MeshBasicMaterial).opacity =
           (index === selectedAgent && isLive ? 0.7 : 0.54) * (0.72 + daylightShadow * 0.28);
         if (model.halo) {
-          model.halo.visible = index === selectedAgent && agent.x < 50;
+          model.halo.visible = index === selectedAgent && model.group.visible;
           if (model.halo.visible) {
             model.halo.position.set(position.x, 0.105, position.z);
             model.halo.scale.setScalar(reducedMotion ? 1 : 1 + Math.sin(animationTime * 2.4) * 0.045);
@@ -1345,8 +1350,8 @@ export function createWorld(host: HTMLElement, simulation: Simulation, variant: 
           model.facing = "away";
         } else {
           const heading = isLive ? agent.route[0] ?? agent.target : agent.target;
-          const dx = heading.x - agent.x;
-          const dz = heading.z - agent.z;
+          const dx = isLive && agent.heading !== undefined ? Math.sin(agent.heading) : heading.x - agent.x;
+          const dz = isLive && agent.heading !== undefined ? Math.cos(agent.heading) : heading.z - agent.z;
           if (dz < -Math.abs(dx) * 0.85 && Math.abs(dz) > 0.2) model.facing = "away";
           else if (Math.abs(dx) > 0.2) model.facing = dx < 0 ? "left" : "right";
           else if (dz > 0.2) model.facing = "left";
@@ -1370,7 +1375,9 @@ export function createWorld(host: HTMLElement, simulation: Simulation, variant: 
         speck.position.y = 2.2 + (reducedMotion ? 0 : Math.sin(animationTime * 1.2 + i * 2.1) * 0.15);
         speck.visible = busy || i % 3 === 0;
       });
-      if (focusIndex !== null && focusIndex < simulation.progress.capacity) {
+      if (focusIndex !== null && focusIndex < simulation.progress.capacity &&
+        simulation.agents[focusIndex].x < 50 &&
+        !(reducedMotion && (simulation.agents[focusIndex].arriving || simulation.agents[focusIndex].route.length))) {
         const agent = simulation.agents[focusIndex];
         const easing = reducedMotion ? 1 : 1 - Math.exp(-frameDelta * 7);
         panX = THREE.MathUtils.lerp(panX, THREE.MathUtils.clamp(agent.x + 1.15, isLive ? -7.8 : -5.5, isLive ? 7.8 : 5.5), easing);

@@ -9,8 +9,11 @@ import { sampleDaylight } from "../game/lighting";
 import { AGENTCORP_LETTERS, AGENTCORP_MARK, AGENTCORP_WORDMARK } from "../game/sprite-art";
 import { createWorld } from "../game/world";
 import { newAgent, type Member } from "./observation-layout";
-import { advanceDepartures, reconcileOffice, type Departure, type OfficeRoster } from "./observation-departures";
-import { moveObservationScene, updateObservationScene } from "./observation-movement";
+import { advanceOffice, reconcileOffice, type OfficeRoster } from "./observation-departures";
+import { updateObservationScene } from "./observation-movement";
+import { OfficeTraffic } from "../game/traffic";
+import { StatusBubbles, type OfficeBubble } from "./status-bubbles";
+import { parsePreferences, reducedMotion, type ViewerPreferences } from "./motion-preference";
 import { agentName, agentPersona } from "./room";
 
 type Observation = { root: string; sessions: Member[]; overflow: number; presence?: Record<string, boolean> };
@@ -33,14 +36,22 @@ function Office() {
   const [error, setError] = useState("");
   const [sceneError, setSceneError] = useState("");
   const [navigationError, setNavigationError] = useState("");
+  const [trafficError, setTrafficError] = useState("");
   const [themeError, setThemeError] = useState("");
+  const [preferences, setPreferences] = useState<ViewerPreferences | null>(null);
+  const [preferenceError, setPreferenceError] = useState("");
+  const [savingPreference, setSavingPreference] = useState(false);
+  const [systemReduced, setSystemReduced] = useState(() => matchMedia("(prefers-reduced-motion: reduce)").matches);
+  const motionReduced = reducedMotion(preferences?.motion ?? "system", systemReduced);
+  const reducedRef = useRef(motionReduced);
+  reducedRef.current = motionReduced;
   const [selected, setSelected] = useState("");
   const [panelOpen, setPanelOpen] = useState(false);
   const [hover, setHover] = useState<{ name: string; x: number; y: number } | null>(null);
   const hoverIndex = useRef<number | null>(null);
   const hoverLabel = useRef<HTMLDivElement>(null);
   const farewellLabels = useRef(new Map<string, HTMLDivElement>());
-  const [departures, setDepartures] = useState<Departure[]>([]);
+  const [bubbles, setBubbles] = useState<OfficeBubble[]>([]);
   const [previewOffset, setPreviewOffset] = useState(0);
   const previewRef = useRef(0);
   const [themePreference, setThemePreference] = useState<"system" | "light" | "dark">(() => {
@@ -93,6 +104,33 @@ function Office() {
     return () => media.removeEventListener("change", update);
   }, []);
   useEffect(() => {
+    const media = matchMedia("(prefers-reduced-motion: reduce)");
+    const update = () => setSystemReduced(media.matches);
+    media.addEventListener("change", update);
+    const controller = new AbortController();
+    void fetch("/api/preferences", { cache: "no-store", signal: controller.signal })
+      .then(async response => {
+        if (!response.ok) throw new Error(await response.text());
+        return parsePreferences(await response.json());
+      }).then(saved => { if (!controller.signal.aborted) setPreferences(saved); })
+      .catch(cause => { if (!controller.signal.aborted) setPreferenceError(`Preferences unavailable: ${String(cause)}`); });
+    return () => { controller.abort(); media.removeEventListener("change", update); };
+  }, []);
+  useEffect(() => { world.current?.setReducedMotion(motionReduced); }, [motionReduced]);
+  const savePreference = async (update: Partial<ViewerPreferences>) => {
+    setSavingPreference(true);
+    try {
+      const response = await fetch("/api/preferences", {
+        method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify(update),
+      });
+      if (!response.ok) throw new Error(await response.text());
+      setPreferences(parsePreferences(await response.json()));
+      setPreferenceError("");
+    } catch (cause) {
+      setPreferenceError(`Preference not saved: ${cause instanceof Error ? cause.message : String(cause)}`);
+    } finally { setSavingPreference(false); }
+  };
+  useEffect(() => {
     if (!panelOpen) return;
     const onKeyDown = (event: KeyboardEvent) => {
       if (event.key === "Escape") {
@@ -125,12 +163,14 @@ function Office() {
     scene.progress.context = false;
     scene.progress.workflow = 1;
     let roster: OfficeRoster = { members: [], agents: [], departures: [] };
+    const traffic = new OfficeTraffic();
+    const statusBubbles = new StatusBubbles();
+    let bubbleSignature = "";
     const syncRoster = () => {
       scene.agents = roster.agents;
       world.current?.capturePositions();
       [...roster.members, ...roster.departures.map(departure => departure.member)]
         .forEach((member, index) => world.current?.setAgentPersona(index, agentPersona(member.id)));
-      setDepartures([...roster.departures]);
     };
     try {
       world.current = createWorld(host.current, scene, "live", {
@@ -161,6 +201,7 @@ function Office() {
           setHover(null);
         },
       });
+      world.current.setReducedMotion(reducedRef.current);
     } catch (cause) {
       host.current.classList.add("static-fallback");
       setSceneError(`3D office unavailable: ${cause instanceof Error ? cause.message : String(cause)}`);
@@ -223,15 +264,19 @@ function Office() {
       if (!document.hidden) {
         while (remainder >= STEP) {
           world.current?.capturePositions();
-          moveObservationScene(scene, STEP); scene.time += STEP;
-          if (advanceDepartures(roster, STEP)) syncRoster();
+          if (advanceOffice(roster, traffic, STEP, reducedRef.current)) syncRoster();
+          scene.time += STEP;
           remainder -= STEP; advanced = true;
         }
         world.current?.render(now / 1000, previewRef.current, remainder / STEP, advanced);
-        roster.departures.forEach((departure, index) => {
-          const label = farewellLabels.current.get(departure.member.id);
+        const activeBubbles = statusBubbles.update(roster, scene.time);
+        setTrafficError(traffic.error);
+        const signature = activeBubbles.map(bubble => `${bubble.id}/${bubble.text}/${bubble.index}`).join("|");
+        if (signature !== bubbleSignature) { bubbleSignature = signature; setBubbles(activeBubbles); }
+        activeBubbles.forEach(bubble => {
+          const label = farewellLabels.current.get(bubble.id);
           if (!label) return;
-          const point = world.current?.projectAgent(roster.members.length + index);
+          const point = reducedRef.current ? world.current?.projectPosition(bubble.anchor) : world.current?.projectAgent(bubble.index);
           label.hidden = !point;
           if (point) {
             const halfWidth = label.offsetWidth / 2 + 8;
@@ -266,7 +311,7 @@ function Office() {
   const blocked = sessions.filter(member => member.phase === "blocked").length;
   const overflow = state?.overflow ?? 0;
   const moreLabel = `${overflow} more session${overflow === 1 ? "" : "s"}`;
-  const visualError = error || sceneError || navigationError || themeError;
+  const visualError = error || sceneError || navigationError || trafficError || preferenceError || themeError;
   const connected = !error && state !== null;
   const statusKind = visualError ? "error" : !state || !live ? "connecting" : "online";
   const statusLabel = visualError ? "Error" : !state ? "Connecting" : live ? "Live" : "No sessions";
@@ -287,6 +332,16 @@ function Office() {
             <path key={index} d={path} fill={index < 5 ? "var(--office-text)" : "var(--office-purple)"} />)}
         </svg>
         <div className="identity-controls">
+          <label className="motion-control">Motion
+            <select aria-label="Office motion" value={preferences?.motion ?? "system"}
+              disabled={!preferences || savingPreference}
+              onChange={event => {
+                const motion = event.currentTarget.value;
+                if (motion === "system" || motion === "reduced" || motion === "full") void savePreference({ motion });
+              }}>
+              <option value="system">System</option><option value="reduced">Reduced</option><option value="full">Full</option>
+            </select>
+          </label>
           <button type="button" className="time-preview" onClick={previewLight}
             title="Preview the next six hours of decorative office lighting"
             aria-label={`Office lighting ${daylight.label}; preview next six hours`}>
@@ -314,14 +369,14 @@ function Office() {
       <section className="world-panel" aria-label="Live Copilot office">
         <div className="world-host" ref={host}>
           {hover && <div ref={hoverLabel} className="agent-hover" style={{ left: hover.x, top: hover.y }}>{hover.name}</div>}
-          {departures.map(departure => <div key={departure.member.id}
+          {bubbles.map(bubble => <div key={bubble.id}
             ref={element => {
-              if (element) farewellLabels.current.set(departure.member.id, element);
-              else farewellLabels.current.delete(departure.member.id);
+              if (element) farewellLabels.current.set(bubble.id, element);
+              else farewellLabels.current.delete(bubble.id);
             }}
             className="agent-hover agent-farewell" role="status"
-            aria-label={`${agentName(departure.member.id)} says: ${departure.phrase}`}>
-            {departure.phrase}
+            aria-label={`${agentName(bubble.id)} says: ${bubble.text}`}>
+            {bubble.text}
           </div>)}
           <div className="world-callout live-callout" role="status" aria-live="polite">
             <button type="button" className={`office-status-link sdk-${statusKind}`}
@@ -349,6 +404,19 @@ function Office() {
         </div>
         <div className="activity-scroll activity-list-scroll">
           <section className="activity-view overview-list" aria-label="Office overview status">
+            <div className="activity-row">
+              <div className="activity-row-heading"><strong>Office preferences</strong></div>
+              <label className="auto-open-control">
+                <input type="checkbox" checked={preferences?.autoOpen ?? false}
+                  disabled={!preferences || savingPreference}
+                  onChange={event => void savePreference({ autoOpen: event.currentTarget.checked })} />
+                Open automatically in new sessions
+              </label>
+              <p>Applies at subsequent extension startup in canvas-capable sessions. Existing panels and once-per-session startup records stay unchanged.</p>
+              <p>Reduced motion hides travel and disables decorative motion, while status messages remain visible.</p>
+              {savingPreference && <p role="status">Saving preference...</p>}
+              {preferenceError && <p role="alert">{preferenceError}</p>}
+            </div>
             <div className="activity-row activity-row-first">
               <div className="activity-row-heading"><strong>Connection</strong>
                 <span className={`activity-tag ${connected ? "activity-tag-live" : error ? "activity-tag-warning" : ""}`}>
@@ -362,10 +430,10 @@ function Office() {
                 <span className="activity-tag activity-tag-warning">Unavailable</span></div>
               <p>{sceneError} Session observations remain available below.</p>
             </div>}
-            {navigationError && <div className="activity-row">
+            {(navigationError || trafficError) && <div className="activity-row">
               <div className="activity-row-heading"><strong>Office movement</strong>
                 <span className="activity-tag activity-tag-warning">Stopped</span></div>
-              <p role="alert">{navigationError}</p>
+              <p role="alert">{navigationError || trafficError}</p>
             </div>}
             {themeError && <div className="activity-row">
               <div className="activity-row-heading"><strong>HUD preference</strong>

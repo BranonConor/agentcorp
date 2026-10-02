@@ -47,6 +47,22 @@
 .observer-shell .observer-agent-row > .activity-tag { align-self: center; }
 .observer-shell .status-idle { background: var(--office-accent-bg); color: var(--office-accent); }
 .observer-shell .world-callout.live-callout { z-index: 3; }
+.observer-shell .motion-control {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  color: var(--office-text);
+  font: 600 11px var(--sans);
+}
+.observer-shell .motion-control select {
+  color: var(--office-text);
+  background: var(--office-panel);
+  border: 1px solid var(--office-border);
+  border-radius: 6px;
+  padding: 5px;
+}
+.observer-shell .auto-open-control { display: flex; align-items: center; gap: 8px; margin-top: 8px; }
+.observer-shell .auto-open-control input { accent-color: var(--office-accent); }
 .observer-shell .agent-farewell {
   padding: 9px 12px;
   border-radius: 12px;

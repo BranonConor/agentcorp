@@ -45,11 +45,21 @@ remain in the working gap ahead of the chair; sofa targets use a walkable
 front approach followed by a short visual sit/stand transition. Retargeting
 starts at the current position, including during a sit/stand transition.
 Unreachable routes stop the agent and surface an office error, retried on
-the next snapshot; there is no direct-path or teleport fallback. This is
-static-furniture navigation, not agent-to-agent collision avoidance.
+the next snapshot; there is no direct-path or teleport fallback.
+
+New avatars queue outside the two front-corner entrances and walk to their
+assigned destination. Cooperative traffic reserves complete swept routes:
+nonconflicting routes run together, while conflicting agents wait. When an
+occupied destination or a head-on encounter blocks progress, one agent pulls
+over to a reachable clear floor point and then returns to its destination.
+Body clearance includes seated positions and the sit/stand sweep. Planning
+is throttled to 0.3-second intervals; movement accelerates and brakes using
+elapsed time, turns toward the next leg, and still never rounds a corner
+through furniture. Agents retain their identity across polls and retargets.
 
 When a previously displayed session goes offline, expires, or stops, its avatar
-says goodbye for 1.8 seconds and takes the shortest safe route to either front
+waits through a 4-second reconnect grace period, says goodbye for 1.8 seconds,
+and takes the shortest safe route to either front
 corner exit. Departures are not counted as connected or assigned a desk.
 Reconnecting cancels the departure; failed polls leave the roster alone.
 The snapshot endpoint optionally accepts repeated `presence=<session-id>`
@@ -60,3 +70,22 @@ writes, freshness changes, or extra private session details are involved.
 Farewells use the existing animation loop rather than per-agent timers;
 an office with 64 retained active/departing avatars reports backpressure
 until exits clear rather than silently discarding a departure.
+
+Status bubbles are derived only from observed phases: "Working...", "Using
+a tool", "Waiting for you", and "Ready". They debounce for 0.5 seconds and
+rate-limit routine messages to once per 8 seconds. Waiting-for-user remains
+visible, and farewells take precedence; no prompts, tool arguments, or inferred
+task outcomes are shown.
+
+The Motion control defaults to the OS `prefers-reduced-motion` setting. Reduced
+mode hides travel, fixes status bubble anchors and disables bobbing/decorative
+motion and animated turns; logical routes, yielding, grace and exits still
+complete. Overrides persist in
+`$COPILOT_HOME/extensions/agentcorp-extension/artifacts/viewer-preferences.json`,
+not port-scoped localStorage. The existing `artifacts/settings.json` remains
+strictly autoOpen-only. Overview also exposes "Open automatically in new
+sessions", using the startup implementation's existing reader and validation.
+Both preferences save only on explicit interaction; errors keep the last saved
+control value visible. `/api/preferences` accepts only GET and same-origin PUT
+with a 256-byte JSON body changing exactly one allow-listed preference, and
+writes atomically to fixed paths. Observation endpoints remain read-only.

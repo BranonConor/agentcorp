@@ -101,7 +101,7 @@ const members = (phase: Phase): Member[] => LIVE_DESKS.map((_, index) => ({ id: 
 const position = (agent: Agent): Point => ({ x: agent.x, z: agent.z });
 const newScene = () => {
   const scene = new Simulation();
-  scene.agents = LIVE_DESKS.map((_, index) => newAgent(index));
+  scene.agents = LIVE_DESKS.map((point, index) => ({ ...newAgent(index), ...point, target: { ...point }, arriving: false }));
   return scene;
 };
 
@@ -129,6 +129,7 @@ function finish(scene: Simulation) {
 test("full idle -> work -> idle cycles preserve walking, working and seating with safe interpolated steps", () => {
   const scene = newScene();
   assert.deepEqual(updateObservationScene(scene, members("idle")), []);
+  finish(scene);
   scene.agents.slice(4, 10).forEach(agent => {
     assert.deepEqual(agentPosition(agent), agent.target, "Original seated artwork position preserved");
     assert.equal(agent.seating?.blend, 1);
@@ -152,6 +153,7 @@ test("mid-walk destination and desk-slot changes replan from current positions w
   const scene = newScene();
   const idle = members("idle");
   updateObservationScene(scene, idle);
+  finish(scene);
   updateObservationScene(scene, members("tool"));
   for (let frame = 0; frame < 80; frame++) tick(scene);
   const before = scene.agents.map(position);
@@ -174,6 +176,7 @@ test("mid-walk destination and desk-slot changes replan from current positions w
 test("interrupted sit/stand blends remain continuous and finish standing before walking", () => {
   const scene = newScene();
   updateObservationScene(scene, members("idle"));
+  finish(scene);
   const sitter = scene.agents[4];
   updateObservationScene(scene, members("tool"));
   for (let i = 0; i < 3; i++) tick(scene);

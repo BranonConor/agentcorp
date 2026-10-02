@@ -4,6 +4,11 @@ Read-only live-session office for the GitHub Copilot app.
 
 ## Automatically open the office
 
+In the canvas, open **Manage agents** and toggle **Open automatically in new
+sessions** under Office preferences. Saving does not open, close, or refocus
+the current panel. The control updates the same setting described below and
+reports read/save errors without claiming success.
+
 Create or edit `~/.copilot/extensions/agentcorp-extension/artifacts/settings.json`:
 
 ```json
@@ -36,3 +41,19 @@ manual opening remains available, and a later reload can retry.
 Back up this settings file before removing or reinstalling the extension, then
 restore it to keep your preference. It is separate from the office's heartbeat
 data under `$COPILOT_HOME/agentcorp-observer/artifacts/`.
+
+## Motion preferences
+
+The canvas's **Motion** selector provides **System**, **Reduced**, and **Full**.
+System follows `prefers-reduced-motion` live. Reduced hides walking and disables
+decorative motion, while phase messages and farewells stay readable and logical
+arrivals/departures continue safely. Changes take effect immediately and persist
+across reloads in a separate `artifacts/viewer-preferences.json` file:
+
+```json
+{ "motion": "reduced" }
+```
+
+A missing motion file defaults to System. Do not add `motion` to `settings.json`,
+which remains autoOpen-only. Preferences are saved atomically through a bounded,
+same-origin local API; observation/heartbeat APIs remain read-only.

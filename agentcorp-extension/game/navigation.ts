@@ -9,7 +9,7 @@ function contains(bounds: Bounds, point: Point): boolean {
     point.z >= bounds.minZ && point.z <= bounds.maxZ;
 }
 
-function intersects(from: Point, to: Point, bounds: Bounds): boolean {
+export function intersects(from: Point, to: Point, bounds: Bounds): boolean {
   let enter = 0;
   let exit = 1;
   for (const [start, end, min, max] of [
@@ -36,21 +36,23 @@ export function createNavigation(obstacles: readonly Obstacle[], room: Bounds, c
     minX: room.minX + clearance.x, maxX: room.maxX - clearance.x,
     minZ: room.minZ + clearance.z, maxZ: room.maxZ - clearance.z,
   };
-  const inflated = obstacles.map(obstacle => ({
+  const inflate = (obstacle: Obstacle) => ({
     ...obstacle,
     minX: obstacle.minX - clearance.x, maxX: obstacle.maxX + clearance.x,
     minZ: obstacle.minZ - clearance.z, maxZ: obstacle.maxZ + clearance.z,
-  }));
+  });
+  const inflated = obstacles.map(inflate);
   const isWalkable = (point: Point) => Number.isFinite(point.x) && Number.isFinite(point.z) &&
     contains(bounds, point) && !inflated.some(obstacle => contains(obstacle, point));
   const segmentClear = (from: Point, to: Point) => isWalkable(from) && isWalkable(to) &&
     !inflated.some(obstacle => intersects(from, to, obstacle));
-  const corners = inflated.flatMap(({ minX, maxX, minZ, maxZ }) => [
+  const rectangleCorners = ({ minX, maxX, minZ, maxZ }: Bounds) => [
     { x: minX - CORNER_MARGIN, z: minZ - CORNER_MARGIN },
     { x: maxX + CORNER_MARGIN, z: minZ - CORNER_MARGIN },
     { x: minX - CORNER_MARGIN, z: maxZ + CORNER_MARGIN },
     { x: maxX + CORNER_MARGIN, z: maxZ + CORNER_MARGIN },
-  ]).filter(isWalkable);
+  ];
+  const corners = inflated.flatMap(rectangleCorners).filter(isWalkable);
   const distance = (a: Point, b: Point) => Math.hypot(a.x - b.x, a.z - b.z);
   const edges = corners.map(() => [] as { to: number; distance: number }[]);
   corners.forEach((from, i) => {
@@ -62,17 +64,31 @@ export function createNavigation(obstacles: readonly Obstacle[], room: Bounds, c
     }
   });
 
-  const route = (from: Point, to: Point): Point[] | null => {
-    if (!isWalkable(from) || !isWalkable(to)) return null;
+  const route = (from: Point, to: Point, blockers: readonly Obstacle[] = []): Point[] | null => {
+    const dynamic = blockers.map(inflate);
+    const clearDynamic = (a: Point, b: Point) => !dynamic.some(obstacle => intersects(a, b, obstacle));
+    const clear = (a: Point, b: Point) => segmentClear(a, b) && clearDynamic(a, b);
+    if (!isWalkable(from) || !isWalkable(to) || !clearDynamic(from, from) || !clearDynamic(to, to)) return null;
     if (from.x === to.x && from.z === to.z) return [];
-    if (segmentClear(from, to)) return [{ ...to }];
-    const nodes = [...corners, from, to];
-    const start = corners.length;
+    if (clear(from, to)) return [{ ...to }];
+    const extra = dynamic.flatMap(rectangleCorners).filter(point => isWalkable(point) && clearDynamic(point, point));
+    const vertices = [...corners, ...extra];
+    const nodes = [...vertices, from, to];
+    const start = vertices.length;
     const end = start + 1;
-    const links = [...edges.map(edge => [...edge]), [], []];
-    for (let i = 0; i < corners.length; i++) {
-      if (segmentClear(from, corners[i])) links[start].push({ to: i, distance: distance(from, corners[i]) });
-      if (segmentClear(corners[i], to)) links[i].push({ to: end, distance: distance(corners[i], to) });
+    const links = [...edges.map((edge, i) => edge.filter(link => clearDynamic(corners[i], corners[link.to]))),
+      ...extra.map(() => [] as { to: number; distance: number }[]), [], []];
+    for (let i = corners.length; i < vertices.length; i++) {
+      for (let j = 0; j < i; j++) {
+        if (!clear(vertices[i], vertices[j])) continue;
+        const length = distance(vertices[i], vertices[j]);
+        links[i].push({ to: j, distance: length });
+        links[j].push({ to: i, distance: length });
+      }
+    }
+    for (let i = 0; i < vertices.length; i++) {
+      if (clear(from, vertices[i])) links[start].push({ to: i, distance: distance(from, vertices[i]) });
+      if (clear(vertices[i], to)) links[i].push({ to: end, distance: distance(vertices[i], to) });
     }
     const costs = nodes.map(() => Infinity);
     const previous = nodes.map(() => -1);

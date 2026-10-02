@@ -28,13 +28,10 @@ export function updateObservationScene(
     if (!destination) throw new Error(`Missing office destination for desk ${index + 1}`);
     const goal = walkingDestination(destination);
     sprite.taskId = busy ? index + 1 : undefined;
-    if (sprite.x === 100 && navigation.isWalkable(goal)) {
-      sprite.x = goal.x; sprite.z = goal.z;
+    if (sprite.x === 100) {
       sprite.target = { ...destination };
       sprite.route = [];
-      sprite.navigationBlocked = false;
-      sprite.state = busy ? "working" : "idle";
-      sprite.seating = isLoungeSeat(destination) ? { position: { ...destination }, blend: 1 } : undefined;
+      sprite.navigationBlocked = !navigation.isWalkable(goal);
     } else if (!samePoint(sprite.target, destination) || sprite.navigationBlocked) {
       const route = navigation.route(sprite, goal);
       sprite.target = { ...destination };
@@ -54,13 +51,13 @@ export function updateObservationScene(
   return errors;
 }
 
-export function moveObservationAgent(sprite: Agent, delta: number) {
+export function moveObservationAgent(sprite: Agent, delta: number, reducedMotion = false) {
   if (sprite.x === 100 || sprite.navigationBlocked) return;
   const busy = sprite.taskId !== undefined;
   const restingHere = !busy && isLoungeSeat(sprite.target) && sprite.route.length === 0;
   if (sprite.seating && (!restingHere || !samePoint(sprite.seating.position, sprite.target))) {
     // Finish standing at the old seat's approach before following a new route.
-    sprite.seating.blend = Math.max(0, sprite.seating.blend - delta / SEAT_SECONDS);
+    sprite.seating.blend = reducedMotion ? 0 : Math.max(0, sprite.seating.blend - delta / SEAT_SECONDS);
     sprite.state = busy ? "walking" : "returning";
     if (sprite.seating.blend === 0) sprite.seating = undefined;
     return;
@@ -68,7 +65,20 @@ export function moveObservationAgent(sprite: Agent, delta: number) {
   const point = sprite.route[0];
   if (point) {
     const distance = Math.hypot(point.x - sprite.x, point.z - sprite.z);
-    const step = 2.05 * delta;
+    const next = sprite.route[1];
+    const bend = next && distance > 0 ? 1 - Math.max(-1, Math.min(1,
+      ((point.x - sprite.x) * (next.x - point.x) + (point.z - sprite.z) * (next.z - point.z)) /
+      (distance * Math.hypot(next.x - point.x, next.z - point.z) || 1))) : 2;
+    const cornerSpeed = next ? Math.max(0.35, 2.05 * (1 - bend / 2)) : 0;
+    const desired = reducedMotion ? 2.05 : Math.min(2.05, Math.sqrt(cornerSpeed ** 2 + 6 * distance));
+    const oldSpeed = sprite.velocity ?? 0;
+    sprite.velocity = reducedMotion ? desired : oldSpeed + Math.max(-6 * delta, Math.min(3 * delta, desired - oldSpeed));
+    const step = sprite.velocity * delta;
+    if (distance > 1e-6) {
+      const heading = Math.atan2(point.x - sprite.x, point.z - sprite.z);
+      const turn = Math.atan2(Math.sin(heading - (sprite.heading ?? heading)), Math.cos(heading - (sprite.heading ?? heading)));
+      sprite.heading = reducedMotion ? heading : (sprite.heading ?? heading) + turn * (1 - Math.exp(-10 * delta));
+    }
     if (distance <= step) {
       sprite.x = point.x; sprite.z = point.z;
       sprite.route.shift();
@@ -81,9 +91,11 @@ export function moveObservationAgent(sprite: Agent, delta: number) {
     return;
   }
   sprite.state = busy ? "working" : "idle";
+  sprite.velocity = 0;
+  sprite.arriving = false;
   if (restingHere) {
     sprite.seating ??= { position: { ...sprite.target }, blend: 0 };
-    sprite.seating.blend = Math.min(1, sprite.seating.blend + delta / SEAT_SECONDS);
+    sprite.seating.blend = reducedMotion ? 1 : Math.min(1, sprite.seating.blend + delta / SEAT_SECONDS);
   }
 }
 

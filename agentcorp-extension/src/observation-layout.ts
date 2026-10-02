@@ -5,7 +5,7 @@ export type Member = { id: string; phase: Phase; present: true };
 
 export function newAgent(id: number): Agent {
   return { id, state: "idle", x: 100, z: 100, target: { x: 100, z: 100 },
-    route: [], workLeft: 0, workTotal: 0, visitedContext: false };
+    route: [], workLeft: 0, workTotal: 0, visitedContext: false, arriving: true };
 }
 
 /** Keep visible agents at their desks when heartbeat priority changes. */

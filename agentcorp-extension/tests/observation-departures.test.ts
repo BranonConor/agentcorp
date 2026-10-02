@@ -2,12 +2,12 @@ import assert from "node:assert/strict";
 import { test } from "node:test";
 import { MAX_PRESENCE_IDS } from "../../.github/extensions/agentcorp-extension/observations.mjs";
 import { agentPosition } from "../game/animation";
-import { LIVE_AGENT_CLEARANCE } from "../game/live-layout";
+import { LIVE_AGENT_CLEARANCE, isLoungeSeat, walkingDestination } from "../game/live-layout";
 import { LIVE_OBSTACLES, LIVE_WALK_BOUNDS, liveNavigation } from "../game/live-navigation";
 import { createNavigation } from "../game/navigation";
 import { Simulation, type Point } from "../game/simulation";
 import {
-  FAREWELL_SECONDS, LIVE_EXITS, MAX_TRACKED_AGENTS, advanceDepartures, reconcileOffice, type OfficeRoster,
+  FAREWELL_SECONDS, RECONNECT_GRACE_SECONDS, LIVE_EXITS, MAX_TRACKED_AGENTS, advanceDepartures, reconcileOffice, type OfficeRoster,
 } from "../src/observation-departures";
 import type { Member, Phase } from "../src/observation-layout";
 import { moveObservationScene, updateObservationScene } from "../src/observation-movement";
@@ -17,6 +17,12 @@ const empty = (): OfficeRoster => ({ members: [], agents: [], departures: [] });
 const sync = (scene: Simulation, roster: OfficeRoster) => {
   scene.agents = roster.agents;
   assert.deepEqual(updateObservationScene(scene, roster.members), []);
+  // Settled fixtures isolate departure behavior; traffic tests exercise real arrivals.
+  roster.agents.filter(agent => agent.x === 100).forEach(agent => {
+    Object.assign(agent, walkingDestination(agent.target));
+    agent.arriving = false;
+    if (isLoungeSeat(agent.target)) agent.seating = { position: { ...agent.target }, blend: 1 };
+  });
 };
 const position = (point: Point) => ({ x: point.x, z: point.z });
 const presenceFor = (roster: OfficeRoster, present: string[] = []) => Object.fromEntries(
@@ -56,6 +62,7 @@ test("disconnected agents farewell once, traverse safe exits and are removed wit
     }
     assert.ok(LIVE_EXITS.some(exit => exit.x === previous.x && exit.z === previous.z));
   }
+  assert.equal(advanceDepartures(roster, RECONNECT_GRACE_SECONDS), true);
   assert.equal(advanceDepartures(roster, FAREWELL_SECONDS / 2), false);
   roster = reconcileOffice(roster, [], presenceFor(roster));
   assert.equal(roster.departures.length, 16);
@@ -99,7 +106,7 @@ test("overflow-displaced live agents do not farewell, but true disconnects with 
 });
 
 test("reconnection during farewell, standing or exit walking cancels departure without losing position or identity", () => {
-  for (const ticks of [0, 57, 75]) {
+  for (const ticks of [0, 177, 195]) {
     const scene = new Simulation();
     const incoming = Array.from({ length: 6 }, (_, index) => member(`session-${index}`));
     let roster = reconcileOffice(empty(), incoming, undefined);

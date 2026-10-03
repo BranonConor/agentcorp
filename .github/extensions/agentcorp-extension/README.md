@@ -49,6 +49,9 @@ The gear menu has exactly four toggles: **Dark Mode**, **Reduced Motion**,
 The controls are slide switches with clickable labels and keyboard Space/Enter
 support. The solid deep-green panel stays readable in either office theme;
 Reduced Motion also disables switch-thumb animation.
+Pending saves block additional input without changing unrelated switches'
+appearance, including when motion transitions are re-enabled.
+Reserved saving-message space prevents the switches from shifting in short viewports.
 Dark Mode controls the existing light/dark office theme. Reduced Motion
 follows `prefers-reduced-motion` until explicitly toggled; saved
 `system/reduced/full` values remain compatible. Reduced mode keeps agents

@@ -30,16 +30,18 @@ function SettingsSwitch({ label, checked, disabled, onChange }: {
 export function SettingsControls({ preferences, dark, reduced, saving, error, onSave }: ControlsProps) {
   const disabled = !preferences || saving;
   return <>
-    <SettingsSwitch label="Dark Mode" checked={dark} disabled={disabled}
-      onChange={checked => onSave({ theme: checked ? "dark" : "light" })} />
-    <SettingsSwitch label="Reduced Motion" checked={reduced} disabled={disabled}
-      onChange={checked => onSave({ motion: checked ? "reduced" : "full" })} />
-    <SettingsSwitch label="Auto Start" checked={preferences?.autoOpen ?? false} disabled={disabled}
-      onChange={checked => onSave({ autoOpen: checked })} />
-    <SettingsSwitch label="Chat Bubbles" checked={preferences?.chatBubbles ?? true} disabled={disabled}
-      onChange={checked => onSave({ chatBubbles: checked })} />
+    <div className="settings-controls" aria-busy={saving}>
+      <SettingsSwitch label="Dark Mode" checked={dark} disabled={disabled}
+        onChange={checked => onSave({ theme: checked ? "dark" : "light" })} />
+      <SettingsSwitch label="Reduced Motion" checked={reduced} disabled={disabled}
+        onChange={checked => onSave({ motion: checked ? "reduced" : "full" })} />
+      <SettingsSwitch label="Auto Start" checked={preferences?.autoOpen ?? false} disabled={disabled}
+        onChange={checked => onSave({ autoOpen: checked })} />
+      <SettingsSwitch label="Chat Bubbles" checked={preferences?.chatBubbles ?? true} disabled={disabled}
+        onChange={checked => onSave({ chatBubbles: checked })} />
+    </div>
     <p>Auto Start applies to new sessions; this panel stays open.</p>
-    {saving && <p role="status">Saving preference...</p>}
+    <p role="status" className="settings-save-status">{saving ? "Saving preference..." : ""}</p>
     {!preferences && !error && <p role="status">Loading saved settings...</p>}
     {error && <p role="alert">{error}</p>}
   </>;

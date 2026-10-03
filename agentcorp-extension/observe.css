@@ -88,7 +88,7 @@
   cursor: pointer;
 }
 .office-settings-popover .settings-switch-row:hover { background: var(--settings-hover, #284d47); }
-.office-settings-popover .settings-switch-row[data-disabled="true"] {
+.office-settings-popover .settings-controls[aria-busy="false"] .settings-switch-row[data-disabled="true"] {
   color: var(--settings-disabled, #b8cfbf);
   cursor: not-allowed;
 }
@@ -138,11 +138,13 @@
   outline: 2px solid var(--settings-focus, #dcffd4);
   outline-offset: 3px;
 }
-.office-settings-popover .settings-switch-input:disabled + .settings-switch-track { border-style: dashed; background: #36564d; }
-.office-settings-popover .settings-switch-input:disabled + .settings-switch-track::after { background: var(--settings-thumb-off, #edf8f2); }
+.office-settings-popover .settings-controls[aria-busy="false"] .settings-switch-input:disabled + .settings-switch-track { border-style: dashed; background: #36564d; }
+.office-settings-popover .settings-controls[aria-busy="false"] .settings-switch-input:disabled + .settings-switch-track::after { background: var(--settings-thumb-off, #edf8f2); }
+.office-settings-popover .settings-controls[aria-busy="true"] .settings-switch-row { cursor: wait; }
 .office-settings-popover [data-reduced-motion="true"] .settings-switch-track,
 .office-settings-popover [data-reduced-motion="true"] .settings-switch-track::after { transition: none; }
 .office-settings-popover p { margin: 8px 6px; color: var(--settings-muted, #c7dfd1); font-size: 12px; font-weight: 400; line-height: 1.5; }
+.office-settings-popover .settings-save-status { min-height: 1.5em; }
 .office-settings-popover [role="alert"] { color: var(--settings-error, #ffcfb5); }
 .observer-shell .settings-toggle {
   display: grid;

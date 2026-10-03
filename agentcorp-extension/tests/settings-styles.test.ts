@@ -50,7 +50,7 @@ for (const [name, css] of [["source import order", source], ["actual packaged st
       const foreground = resolveColor(row.color, variables);
       const hover = resolveColor(declarations(css, ".office-settings-popover .settings-switch-row:hover").background, variables);
       const helper = resolveColor(declarations(css, ".office-settings-popover p").color, variables);
-      const disabled = resolveColor(declarations(css, '.office-settings-popover .settings-switch-row[data-disabled="true"]').color, variables);
+      const disabled = resolveColor(declarations(css, '.office-settings-popover .settings-controls[aria-busy="false"] .settings-switch-row[data-disabled="true"]').color, variables);
       const error = resolveColor(declarations(css, '.office-settings-popover [role="alert"]').color, variables);
       for (const text of [foreground, helper, disabled, error]) {
         for (const surface of [background, hover]) assert.ok(contrast(text, surface) >= 4.5, `${text} on ${surface}: ${contrast(text, surface)}`);
@@ -90,7 +90,7 @@ for (const [name, css] of [["source import order", source], ["actual packaged st
     assert.match(off.transition, /transform/);
     assert.equal(declarations(css, '.office-settings-popover [data-reduced-motion="true"] .settings-switch-track').transition, "none");
     assert.equal(declarations(css, '.office-settings-popover [data-reduced-motion="true"] .settings-switch-track::after').transition, "none");
-    assert.equal(declarations(css, ".office-settings-popover .settings-switch-input:disabled + .settings-switch-track")["border-style"], "dashed");
+    assert.equal(declarations(css, '.office-settings-popover .settings-controls[aria-busy="false"] .settings-switch-input:disabled + .settings-switch-track')["border-style"], "dashed");
     const button = declarations(css, ".observer-shell .settings-toggle");
     const svg = declarations(css, ".observer-shell .settings-toggle svg");
     assert.equal(button.padding, "0");
@@ -98,5 +98,17 @@ for (const [name, css] of [["source import order", source], ["actual packaged st
     assert.equal(button.display, "grid");
     assert.equal(svg.display, "block");
     assert.ok(parseFloat(svg.width) <= parseFloat(button.width) - 2, "Icon must fit the actual bordered content box");
+  });
+
+  test(`${name}: pending saves keep switch appearances rather than applying unavailable styles`, () => {
+    postcss.parse(css).walkRules(rule => {
+      for (const selector of rule.selectors) {
+        if (!selector.includes("settings-switch") || !/:disabled|data-disabled/.test(selector)) continue;
+        assert.ok(canonical(selector).includes(".settings-controls[aria-busy=false]"), selector);
+      }
+    });
+    assert.deepEqual(declarations(css, '.office-settings-popover .settings-controls[aria-busy="true"] .settings-switch-row'),
+      { cursor: "wait" });
+    assert.equal(declarations(css, ".office-settings-popover .settings-save-status")["min-height"], "1.5em");
   });
 }

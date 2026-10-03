@@ -51,8 +51,10 @@ support. The solid deep-green panel stays readable in either office theme;
 Reduced Motion also disables switch-thumb animation.
 Dark Mode controls the existing light/dark office theme. Reduced Motion
 follows `prefers-reduced-motion` until explicitly toggled; saved
-`system/reduced/full` values remain compatible. Reduced mode hides walking and
-decorative motion without interrupting logical arrivals/departures.
+`system/reduced/full` values remain compatible. Reduced mode keeps agents
+visibly walking and yielding, with speech bubbles following them. It disables
+bobbing, swaying, decorative motion, seat transitions and smooth camera
+transitions without interrupting arrivals or departures.
 Chat Bubbles defaults to on. Turning it off hides all avatar speech, including
 farewells, without changing status indicators, grace periods, or exit timing.
 Turning it on shows current/future messages, not an expired backlog.

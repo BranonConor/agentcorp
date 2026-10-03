@@ -49,7 +49,7 @@ test("waiting-for-user bypasses cooldown, remains visible, and farewell wins ove
   assert.equal(status.update(office, 106)[0].text, "Waiting for you");
 });
 
-test("arrivals suppress routine chatter, blocked arrivals remain useful, and reduced-motion anchors are stationary", () => {
+test("arrivals suppress routine chatter, blocked arrivals remain useful, and bubble origins are retained", () => {
   const office = roster(), status = new StatusBubbles();
   office.agents[0].arriving = true;
   status.update(office, 0);

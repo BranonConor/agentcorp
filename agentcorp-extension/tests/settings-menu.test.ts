@@ -66,3 +66,13 @@ test("switch content carries effective motion state in both themes and the popov
     }
   }
 });
+
+test("reduced motion keeps agents visible, walking and attached to their speech bubbles", async () => {
+  const world = await readFile(new URL("../game/world.ts", import.meta.url), "utf8");
+  const office = await readFile(new URL("../src/observe.tsx", import.meta.url), "utf8");
+  assert.match(world, /model\.group\.visible = model\.shadow\.visible = !!agent && agent\.x < 50;/);
+  assert.match(world, /agent\.state === "idle" \? "coffee" :\s*\(isLive \|\| !reducedMotion\) && Math\.sin\(animationTime \* 8 \+ index\)/);
+  assert.match(office, /const point = world\.current\?\.projectAgent\(bubble\.index\);/);
+  assert.match(world, /model\.group\.rotation\.z = reducedMotion \? 0 :/);
+  assert.match(world, /skyMaterial\.uniforms\.uTime\.value = reducedMotion \? 0 :/);
+});

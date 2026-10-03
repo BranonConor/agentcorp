@@ -108,7 +108,7 @@ test("Hello is emitted once at first actual entry, not in the queue or on return
   roster = reconcileOffice(roster, [member("one", "thinking")], { one: true });
   update(roster);
   advanceOffice(roster, traffic, 1 / 30);
-  assert.deepEqual(bubbles.update(roster, 1)[0].anchor, anchor, "Reduced-motion greeting uses the fixed entrance anchor");
+  assert.deepEqual(bubbles.update(roster, 1)[0].anchor, anchor, "Greeting origin stays at its first actual entrance");
   assert.ok(bubbles.update(roster, 3).every(bubble => bubble.kind !== "arrival"));
   roster = reconcileOffice(roster, [], { one: false });
   assert.deepEqual(bubbles.update(roster, 3.1), []);

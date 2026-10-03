@@ -299,7 +299,7 @@ function Office() {
           const label = farewellLabels.current.get(bubble.id);
           if (!label || !bubbleMatchesView(bubble, roster,
             { id: bubble.id, kind: label.dataset.bubbleKind, text: label.textContent })) return;
-          const point = reducedRef.current ? world.current?.projectPosition(bubble.anchor) : world.current?.projectAgent(bubble.index);
+          const point = world.current?.projectAgent(bubble.index);
           label.hidden = !point;
           if (point) {
             const halfWidth = label.offsetWidth / 2 + 8;

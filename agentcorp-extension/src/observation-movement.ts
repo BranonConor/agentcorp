@@ -70,14 +70,14 @@ export function moveObservationAgent(sprite: Agent, delta: number, reducedMotion
       ((point.x - sprite.x) * (next.x - point.x) + (point.z - sprite.z) * (next.z - point.z)) /
       (distance * Math.hypot(next.x - point.x, next.z - point.z) || 1))) : 2;
     const cornerSpeed = next ? Math.max(0.35, 2.05 * (1 - bend / 2)) : 0;
-    const desired = reducedMotion ? 2.05 : Math.min(2.05, Math.sqrt(cornerSpeed ** 2 + 6 * distance));
+    const desired = Math.min(2.05, Math.sqrt(cornerSpeed ** 2 + 6 * distance));
     const oldSpeed = sprite.velocity ?? 0;
-    sprite.velocity = reducedMotion ? desired : oldSpeed + Math.max(-6 * delta, Math.min(3 * delta, desired - oldSpeed));
+    sprite.velocity = oldSpeed + Math.max(-6 * delta, Math.min(3 * delta, desired - oldSpeed));
     const step = sprite.velocity * delta;
     if (distance > 1e-6) {
       const heading = Math.atan2(point.x - sprite.x, point.z - sprite.z);
       const turn = Math.atan2(Math.sin(heading - (sprite.heading ?? heading)), Math.cos(heading - (sprite.heading ?? heading)));
-      sprite.heading = reducedMotion ? heading : (sprite.heading ?? heading) + turn * (1 - Math.exp(-10 * delta));
+      sprite.heading = (sprite.heading ?? heading) + turn * (1 - Math.exp(-10 * delta));
     }
     if (distance <= step) {
       sprite.x = point.x; sprite.z = point.z;

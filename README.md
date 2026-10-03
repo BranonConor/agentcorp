@@ -75,8 +75,10 @@ Departing avatars are not included in the connected-session counts.
 Occasional bubbles report actual phases, not inferred task results. The gear
 button opens four toggles: **Dark Mode**, **Reduced Motion**, **Auto Start** and
 **Chat Bubbles**, presented as readable slide switches. Explicit choices persist across extension reloads and changing
-viewer ports. Reduced motion follows the OS until explicitly toggled; Chat
-Bubbles defaults on, and switching it off hides speech without interrupting
+viewer ports. Reduced motion follows the OS until explicitly toggled. Agents
+still visibly walk and their speech bubbles follow them; bobbing, decorative
+effects and smooth camera transitions are disabled. Chat Bubbles defaults on,
+and switching it off hides speech without interrupting
 arrivals, reconnect grace or departures. Auto Start affects future session
 startup, not the currently open panel.
 The observer clock and lighting continuously follow local computer time,

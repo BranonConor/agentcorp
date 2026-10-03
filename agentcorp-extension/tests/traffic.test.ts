@@ -191,3 +191,16 @@ test("toggling reduced motion mid-travel, sitting and departure never strands th
   }
   assert.deepEqual(roster.agents, []);
 });
+
+test("visible walking keeps the same acceleration, route and heading when reduced motion is toggled", () => {
+  for (const hz of [15, 30, 60]) {
+    const full = walker(0, LIVE_DESKS[4], LIVE_DESKS[6]);
+    const toggled = structuredClone(full);
+    for (let frame = 0; frame < hz * 20 && !settled(full); frame++) {
+      moveObservationAgent(full, 1 / hz);
+      moveObservationAgent(toggled, 1 / hz, frame % hz < hz / 2);
+      assert.deepEqual(toggled, full, `${hz}Hz frame ${frame}: motion preference changed walking`);
+    }
+    assert.ok(settled(full));
+  }
+});

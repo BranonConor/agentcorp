@@ -1317,8 +1317,7 @@ export function createWorld(host: HTMLElement, simulation: Simulation, variant: 
       });
       agentMeshes.forEach((model, index) => {
         const agent: Agent = simulation.agents[index];
-        const travelling = agent && (agent.arriving || agent.route.length > 0 || agent.yielding);
-        model.group.visible = model.shadow.visible = !!agent && agent.x < 50 && !(isLive && reducedMotion && travelling);
+        model.group.visible = model.shadow.visible = !!agent && agent.x < 50;
         if (!agent) return;
         const position = interpolatePosition(previousPositions[index], agentPosition(agent), alpha);
         const seatBlend = isLive ? agent.seating?.blend ?? 0 : 0;
@@ -1362,7 +1361,7 @@ export function createWorld(host: HTMLElement, simulation: Simulation, variant: 
         }
         const pose: keyof AgentArt = seated ? "sitting" : agent.state === "working" ? "working" :
           agent.state === "idle" ? "coffee" :
-          !reducedMotion && Math.sin(animationTime * 8 + index) > 0 ? "stepA" : "stepB";
+          (isLive || !reducedMotion) && Math.sin(animationTime * 8 + index) > 0 ? "stepA" : "stepB";
         const frame = model.frames[pose][model.facing];
         if (frame !== (model.figure.material as THREE.MeshStandardMaterial).map) {
           (model.figure.material as THREE.MeshStandardMaterial).map = frame;

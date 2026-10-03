@@ -100,10 +100,11 @@ on `.live-shell` variables across the body portal. Contrast checks parse both
 source and emitted CSS: labels exceed 4.5:1 and borders/focus exceed 3:1.
 Thumb transitions follow effective reduced motion. Reduced Motion defaults to the OS
 `prefers-reduced-motion` setting; existing `system/reduced/full` values remain
-valid, and toggling saves `reduced` or `full`. Reduced
-mode hides travel, fixes status bubble anchors and disables bobbing/decorative
-motion and animated turns; logical routes, yielding, grace and exits still
-complete. Overrides persist in
+valid, and toggling saves `reduced` or `full`. Reduced mode keeps agents visible
+while walking and yielding, with the same routes, acceleration, turns and
+walking poses as full motion. Speech bubbles follow their agents. Bobbing,
+swaying, decorative motion, seat transitions and smooth camera transitions
+are disabled; arrivals, reconnect grace and exits still complete. Overrides persist in
 `$COPILOT_HOME/extensions/agentcorp-extension/artifacts/viewer-preferences.json`,
 not port-scoped localStorage. Theme (`system/light/dark`) and `chatBubbles`
 also live in this viewer file. An absent Chat Bubbles preference defaults to

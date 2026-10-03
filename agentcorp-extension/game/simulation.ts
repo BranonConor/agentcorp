@@ -28,6 +28,12 @@ export type Agent = {
   workLeft: number;
   workTotal: number;
   visitedContext: boolean;
+  seating?: { position: Point; blend: number };
+  navigationBlocked?: boolean;
+  arriving?: boolean;
+  yielding?: boolean;
+  velocity?: number;
+  heading?: number;
 };
 
 export type Progress = {

@@ -4,6 +4,7 @@ import { homedir } from "node:os";
 import { join } from "node:path";
 
 export const MAX_DESKS = 16;
+export const MAX_PRESENCE_IDS = 64;
 export const EXPIRY_MS = 45_000;
 const idPattern = /^[a-zA-Z0-9][a-zA-Z0-9_-]{0,127}$/;
 const priority = { blocked: 0, tool: 1, thinking: 2, idle: 3 };
@@ -56,8 +57,16 @@ export async function clearHeartbeat(id, owner) {
   await rm(path, { force: true });
 }
 
-export async function snapshot(root, now = Date.now()) {
+export function validPresenceIds(ids) {
+  if (!Array.isArray(ids) || ids.length > MAX_PRESENCE_IDS || new Set(ids).size !== ids.length) {
+    throw new Error("Invalid presence ID list.");
+  }
+  return ids.map(validId);
+}
+
+export async function snapshot(root, now = Date.now(), presenceIds) {
   validId(root);
+  if (presenceIds !== undefined) validPresenceIds(presenceIds);
   let files;
   try {
     files = await readdir(dataDir, { withFileTypes: true });
@@ -90,5 +99,10 @@ export async function snapshot(root, now = Date.now()) {
   }
   sessions.sort((a, b) => priority[a.phase] - priority[b.phase] ||
     (a.id < b.id ? -1 : a.id > b.id ? 1 : 0));
-  return { root, sessions: sessions.slice(0, MAX_DESKS), overflow: Math.max(0, sessions.length - MAX_DESKS) };
+  const result = { root, sessions: sessions.slice(0, MAX_DESKS), overflow: Math.max(0, sessions.length - MAX_DESKS) };
+  if (presenceIds !== undefined) {
+    const present = new Set(sessions.map(session => session.id));
+    result.presence = Object.fromEntries(presenceIds.map(id => [id, present.has(id)]));
+  }
+  return result;
 }

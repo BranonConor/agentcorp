@@ -1,14 +1,14 @@
 import * as THREE from "three";
 import { DESKS } from "./simulation";
-import type { Agent, RequestStatus, Simulation } from "./simulation";
+import type { Agent, Point, RequestStatus, Simulation } from "./simulation";
 import {
-  EXTRA_DESKS, LIVE_COFFEE_COUNTER, LIVE_COFFEE_Z, LIVE_DIVIDER_END_Z, LIVE_DIVIDER_START_Z,
-  LIVE_DIVIDER_PLANTS, LIVE_DIVIDER_X,
-  LIVE_LOUNGE_SOFA_X, LIVE_LOUNGE_Z, LIVE_ROOM, LIVE_RUG_X,
-  deskPropsFor, isLoungeSeat,
+  AGENT_SHADOW, CHAIR_SHAPE, DESK_SHAPE, LIVE_BOOKCASE, LIVE_BOOKCASE_XS,
+  LIVE_COFFEE_COUNTER, LIVE_COFFEE_Z, LIVE_DESKS, LIVE_DIVIDER_END_Z, LIVE_DIVIDER_START_Z,
+  LIVE_DIVIDER_WIDTH, LIVE_DIVIDER_X, LIVE_LAMP, LIVE_PLANTS, LIVE_SOFA, LIVE_STACKS,
+  LIVE_LOUNGE_SOFA_X, LIVE_ROOM, LIVE_RUG_X, PLANT_FOOTPRINT, STACK_FOOTPRINT, deskPropsFor,
 } from "./live-layout";
-import { sampleDaylight } from "./lighting";
-import { interpolatePosition } from "./animation";
+import { sampleDaylight, type Daylight } from "./lighting";
+import { agentPosition, interpolatePosition } from "./animation";
 import {
   agentArt, agentCorpNeonArt, bookcaseArt, chairArt, chatRoomTitleArt,
   coffeeCounterArt, contextConsoleArt, coreBodyArt, deskArt, deskDetailArt,
@@ -287,9 +287,10 @@ function label(text: string, color = "#4e4762") {
 
 function desk(scene: THREE.Object3D, x: number, z: number, index: number,
   track: (art: THREE.CanvasTexture) => THREE.CanvasTexture, variant: "game" | "live") {
-  cutout(scene, track(deskArt(index)), x, 0.58, z - 0.56, 1.55, 1.23, true);
+  cutout(scene, track(deskArt(index)), x, DESK_SHAPE.y, z + DESK_SHAPE.z, DESK_SHAPE.width, DESK_SHAPE.height, true);
   const monitor = cutout(scene, track(monitorArt(index, true, variant)), x - 0.1, 1.08, z - 0.67, 0.77, 0.77);
-  cutout(scene, track(chairArt()), x + 0.35, 0.49, z + 0.37, 0.66, 0.94, true);
+  cutout(scene, track(chairArt()), x + CHAIR_SHAPE.x, CHAIR_SHAPE.y, z + CHAIR_SHAPE.z,
+    CHAIR_SHAPE.width, CHAIR_SHAPE.height, true);
   if (variant === "live") {
     for (const [slot, kind] of deskPropsFor(index).entries()) {
       cutout(scene, track(deskDetailArt(kind, index)),
@@ -313,7 +314,7 @@ function createAgent(id: number, shadowTexture: THREE.Texture, frames: AgentArt)
   figure.rotation.y = 0;
   group.rotation.y = cutoutYaw;
   const shadow = new THREE.Mesh(
-    new THREE.PlaneGeometry(0.6, 0.38),
+    new THREE.PlaneGeometry(AGENT_SHADOW.width, AGENT_SHADOW.depth),
     new THREE.MeshBasicMaterial({ map: shadowTexture, transparent: true, depthWrite: false, opacity: 0.55, toneMapped: false }),
   );
   shadow.rotation.x = -Math.PI / 2;
@@ -322,8 +323,10 @@ function createAgent(id: number, shadowTexture: THREE.Texture, frames: AgentArt)
 }
 
 export type World = {
+  setReducedMotion: (reduced: boolean) => void;
+  projectPosition: (point: Point) => { x: number; y: number } | null;
   capturePositions: () => void;
-  render: (elapsed: number, previewOffset: number, alpha: number, advanced: boolean) => void;
+  render: (elapsed: number, previewOffset: number, alpha: number, advanced: boolean, observerDaylight?: Daylight) => void;
   focusAgent: (index: number | null) => void;
   setAgentPersona: (index: number, persona: number) => void;
   projectDesk: (index: number) => { x: number; y: number } | null;
@@ -349,7 +352,7 @@ export function createWorld(host: HTMLElement, simulation: Simulation, variant: 
   const windowXs = isLive ? [-6.4, -2.05, 2.05, 6.4] : gameWindowXs;
   const cameraBase = isLive ? new THREE.Vector3(0, 18, 26) : gameCameraBase;
   const coffeeZ = isLive ? LIVE_COFFEE_Z : 3.55;
-  const stationPositions = isLive ? [...DESKS, ...EXTRA_DESKS] : DESKS;
+  const stationPositions = isLive ? LIVE_DESKS : DESKS;
   const scene = new THREE.Scene();
   const artTextures: THREE.Texture[] = [];
   const track = <T extends THREE.Texture>(art: T): T => {
@@ -638,7 +641,7 @@ export function createWorld(host: HTMLElement, simulation: Simulation, variant: 
     return { bulb, glow, wash };
   });
   const floorLamps = lampHaloMap ? [-LIVE_DIVIDER_X, LIVE_DIVIDER_X].map((x) => {
-    const z = LIVE_DIVIDER_START_Z - 0.25;
+    const z = LIVE_LAMP.z;
     const pool = new THREE.Mesh(
       new THREE.PlaneGeometry(2.9, 2),
       new THREE.MeshBasicMaterial({
@@ -649,7 +652,7 @@ export function createWorld(host: HTMLElement, simulation: Simulation, variant: 
     pool.rotation.x = -Math.PI / 2;
     pool.position.set(x, 0.073, z + 0.2);
     scene.add(pool);
-    block(scene, x, 0.07, z, 0.55, 0.14, 0.55, 0x6a5969);
+    block(scene, x, 0.07, z, LIVE_LAMP.width, 0.14, LIVE_LAMP.depth, 0x6a5969);
     block(scene, x, 0.98, z, 0.1, 1.74, 0.1, 0xb88670);
     const shade = block(scene, x, 2, z, 0.65, 0.48, 0.58, 0xf6c78e, 0xffad73, 0.25);
     block(scene, x, 2.27, z, 0.69, 0.07, 0.62, 0x624e60);
@@ -672,7 +675,7 @@ export function createWorld(host: HTMLElement, simulation: Simulation, variant: 
     const middle = (LIVE_DIVIDER_START_Z + LIVE_DIVIDER_END_Z) / 2;
     for (const x of [-LIVE_DIVIDER_X, LIVE_DIVIDER_X]) {
       block(scene, x, 0.43, middle, 0.22, 0.86, length, 0x876e73);
-      block(scene, x, 0.89, middle, 0.3, 0.12, length, 0xd9ae88);
+      block(scene, x, 0.89, middle, LIVE_DIVIDER_WIDTH, 0.12, length, 0xd9ae88);
       const glass = new THREE.Mesh(
         new THREE.PlaneGeometry(length - 0.24, 0.56),
         new THREE.MeshBasicMaterial({
@@ -688,8 +691,8 @@ export function createWorld(host: HTMLElement, simulation: Simulation, variant: 
         block(scene, x, 1.24, z, 0.26, 0.76, 0.17, palette.cream);
       }
     }
-    for (const [index, x] of [-8.3, 8.3].entries()) {
-      block(scene, x, 1.12, room.back + 0.32, 1.38, 2.24, 0.3, 0x614e60);
+    for (const [index, x] of LIVE_BOOKCASE_XS.entries()) {
+      block(scene, x, 1.12, LIVE_BOOKCASE.z, LIVE_BOOKCASE.width, 2.24, LIVE_BOOKCASE.depth, 0x614e60);
       cutout(scene, track(bookcaseArt(index)), x, 1.13, room.back + 0.49, 1.27, 2.12);
     }
   }
@@ -751,15 +754,15 @@ export function createWorld(host: HTMLElement, simulation: Simulation, variant: 
     contacts.push({ mesh, opacity });
   };
   if (!isLive) contact(scene, coreDisplay.x, coreDisplay.z, 1.05, 0.85, 0.076);
-  contact(scene, 0, coffeeZ, isLive ? 2.65 : 3.85, 0.62);
+  contact(scene, 0, coffeeZ, isLive ? 2.65 : 3.85, LIVE_COFFEE_COUNTER.depth);
   if (isLive) {
     for (const side of [-1, 1] as const) {
       const style = side < 0 ? "left" : "right";
       const sofaX = side * LIVE_LOUNGE_SOFA_X;
-      cutout(scene, track(loungeSofaArt(style)), sofaX, 0.56, LIVE_LOUNGE_Z - 0.23, 3.08, 1.12, true);
+      cutout(scene, track(loungeSofaArt(style)), sofaX, LIVE_SOFA.y, LIVE_SOFA.backZ, LIVE_SOFA.width, LIVE_SOFA.height, true);
       cutout(scene, track(loungeFrontArt(style)),
-        sofaX, 0.3, LIVE_LOUNGE_Z + 0.17, 3.08, 0.42);
-      contact(scene, sofaX, LIVE_LOUNGE_Z - 0.08, 2.9, 0.72, 0.065, 0.6);
+        sofaX, 0.3, LIVE_SOFA.frontZ, LIVE_SOFA.width, 0.42);
+      contact(scene, sofaX, LIVE_SOFA.footprintZ, 2.9, LIVE_SOFA.depth, 0.065, 0.6);
     }
   }
   const makeAgentModel = (id: number) => {
@@ -796,7 +799,7 @@ export function createWorld(host: HTMLElement, simulation: Simulation, variant: 
     model.frames = frames;
     personas[index] = persona;
   };
-  let previousPositions = simulation.agents.map(({ x, z }) => ({ x, z }));
+  let previousPositions = simulation.agents.map(agentPosition);
   const contextRoom = new THREE.Group();
   contextRoom.visible = !isLive && simulation.progress.context;
   const lockedContext = new THREE.Group();
@@ -826,8 +829,8 @@ export function createWorld(host: HTMLElement, simulation: Simulation, variant: 
   const monitors = stationPositions.map(({ x, z }, index) => {
     const station = stations[index];
     const monitor = desk(station, x, z, index, track, variant);
-    contact(station, x, z - 0.56, 1.24, 0.52);
-    contact(station, x + 0.35, z + 0.37, 0.48, 0.32, 0.065, 0.42);
+    contact(station, x, z + DESK_SHAPE.z, 1.24, DESK_SHAPE.depth);
+    contact(station, x + CHAIR_SHAPE.x, z + CHAIR_SHAPE.z, 0.48, CHAIR_SHAPE.depth, 0.065, 0.42);
     return monitor;
   });
   if (isLive) {
@@ -906,24 +909,19 @@ export function createWorld(host: HTMLElement, simulation: Simulation, variant: 
     return mesh;
   });
   for (let i = 0; i < 2; i++) {
-    const x = (isLive ? -6.9 : -4.6) + i * 0.35;
-    const z = isLive ? -3.5 : 2.2;
-    cutout(scene, track(stackArt(i)), x, 0.43, z, 0.65, 0.81);
-    contact(scene, x, z, 0.55, 0.4, 0.065, 0.52);
+    const x = isLive ? LIVE_STACKS[i].x : -4.6 + i * 0.35;
+    const z = isLive ? LIVE_STACKS[i].z : 2.2;
+    cutout(scene, track(stackArt(i)), x, 0.43, z, STACK_FOOTPRINT.width, 0.81);
+    contact(scene, x, z, 0.55, STACK_FOOTPRINT.depth, 0.065, 0.52);
   }
   const leaves = track(monsteraArt());
-  const plants = isLive ? [
-    { x: -6.6, z: room.back + 1.04, size: 1 }, { x: -4.4, z: room.back + 1.08, size: 0.84 },
-    { x: 4.4, z: room.back + 1.08, size: 0.84 }, { x: 6.6, z: room.back + 1.04, size: 1 },
-    ...LIVE_DIVIDER_PLANTS,
-    { x: -8.2, z: 4.95, size: 0.92 }, { x: 8.2, z: 4.95, size: 0.92 },
-  ] : [
+  const plants = isLive ? LIVE_PLANTS : [
     { x: -4.37, z: 2.99, size: 0.92 }, { x: 5.8, z: 3.35, size: 0.78 },
   ];
   plants.forEach(({ x, z, size }, index) => {
     const plant = cutout(scene, leaves, x, 0.76 * size, z, 1.2 * size, 1.44 * size, true);
     if (index % 2) plant.scale.x = -1;
-    contact(scene, x, z, 0.62 * size, 0.42 * size, 0.065, 0.4);
+    contact(scene, x, z, PLANT_FOOTPRINT.width * size, PLANT_FOOTPRINT.depth * size, 0.065, 0.4);
   });
   const specks: THREE.Mesh[] = [];
   for (let i = 0; i < (isLive ? 0 : 9); i++) {
@@ -1103,7 +1101,7 @@ export function createWorld(host: HTMLElement, simulation: Simulation, variant: 
   const observer = new ResizeObserver(resize);
   observer.observe(host);
   resize();
-  const reducedMotion = matchMedia("(prefers-reduced-motion: reduce)").matches;
+  let reducedMotion = matchMedia("(prefers-reduced-motion: reduce)").matches;
   let lastRenderTime = performance.now() / 1000;
   let lastPreviewOffset = 0;
   let lastRoomKey = "";
@@ -1116,9 +1114,11 @@ export function createWorld(host: HTMLElement, simulation: Simulation, variant: 
   };
 
   return {
+    setReducedMotion(reduced) { reducedMotion = reduced; },
+    projectPosition(point) { return point.x < 50 ? projectPoint(point.x, 1.15, point.z) : null; },
     setAgentPersona,
     capturePositions() {
-      previousPositions = simulation.agents.map(({ x, z }) => ({ x, z }));
+      previousPositions = simulation.agents.map(agentPosition);
     },
     focusAgent(index) {
       const next = index !== null && index >= 0 && index < simulation.progress.capacity ? index : null;
@@ -1139,10 +1139,10 @@ export function createWorld(host: HTMLElement, simulation: Simulation, variant: 
     },
     projectAgent(index) {
       const agent = simulation.agents[index];
-      return agent && index < simulation.progress.capacity && agent.x < 50 ?
-        projectPoint(agent.x, 1.15, agent.z) : null;
+      const position = agent && agentPosition(agent);
+      return position && position.x < 50 ? projectPoint(position.x, 1.15, position.z) : null;
     },
-    render(elapsed: number, previewOffset: number, alpha: number, advanced: boolean) {
+    render(elapsed: number, previewOffset: number, alpha: number, advanced: boolean, observerDaylight?: Daylight) {
       const now = performance.now() / 1000;
       const frameDelta = Math.max(0, Math.min(0.05, now - lastRenderTime));
       lastRenderTime = now;
@@ -1153,7 +1153,7 @@ export function createWorld(host: HTMLElement, simulation: Simulation, variant: 
       }
       lastPreviewOffset = previewOffset;
       lastRoomKey = roomKey;
-      const light = sampleDaylight(simulation.time, previewOffset);
+      const light = isLive && observerDaylight ? observerDaylight : sampleDaylight(simulation.time, previewOffset);
       const direct = light.sun + light.moon;
       const moonShare = direct > 0 ? light.moon / direct : 0;
       const moonStrength = light.moon / 0.45;
@@ -1317,14 +1317,14 @@ export function createWorld(host: HTMLElement, simulation: Simulation, variant: 
       });
       agentMeshes.forEach((model, index) => {
         const agent: Agent = simulation.agents[index];
-        model.group.visible = model.shadow.visible = !!agent;
+        model.group.visible = model.shadow.visible = !!agent && agent.x < 50;
         if (!agent) return;
-        const position = interpolatePosition(previousPositions[index], agent, alpha);
-        const seated = isLive && index >= DESKS.length && agent.state === "idle" &&
-          isLoungeSeat(agent.target);
+        const position = interpolatePosition(previousPositions[index], agentPosition(agent), alpha);
+        const seatBlend = isLive ? agent.seating?.blend ?? 0 : 0;
+        const seated = seatBlend > 0;
         model.idleBlend = THREE.MathUtils.damp(model.idleBlend, agent.state === "idle" ? 1 : 0, 5, frameDelta);
         model.group.position.set(position.x,
-          (seated ? 0.14 : 0) + (reducedMotion ? 0 : Math.sin(animationTime * 1.6 + index) *
+          seatBlend * 0.14 + (reducedMotion ? 0 : Math.sin(animationTime * 1.6 + index) *
             (seated ? 0.01 : isLive ? 0.04 : 0.085) * model.idleBlend),
           position.z);
         model.group.rotation.z = reducedMotion ? 0 : Math.sin(animationTime * 1.05 + index) *
@@ -1334,7 +1334,7 @@ export function createWorld(host: HTMLElement, simulation: Simulation, variant: 
         (model.shadow.material as THREE.MeshBasicMaterial).opacity =
           (index === selectedAgent && isLive ? 0.7 : 0.54) * (0.72 + daylightShadow * 0.28);
         if (model.halo) {
-          model.halo.visible = index === selectedAgent && agent.x < 50;
+          model.halo.visible = index === selectedAgent && model.group.visible;
           if (model.halo.visible) {
             model.halo.position.set(position.x, 0.105, position.z);
             model.halo.scale.setScalar(reducedMotion ? 1 : 1 + Math.sin(animationTime * 2.4) * 0.045);
@@ -1348,8 +1348,9 @@ export function createWorld(host: HTMLElement, simulation: Simulation, variant: 
         } else if (agent.state === "working") {
           model.facing = "away";
         } else {
-          const dx = agent.target.x - agent.x;
-          const dz = agent.target.z - agent.z;
+          const heading = isLive ? agent.route[0] ?? agent.target : agent.target;
+          const dx = isLive && agent.heading !== undefined ? Math.sin(agent.heading) : heading.x - agent.x;
+          const dz = isLive && agent.heading !== undefined ? Math.cos(agent.heading) : heading.z - agent.z;
           if (dz < -Math.abs(dx) * 0.85 && Math.abs(dz) > 0.2) model.facing = "away";
           else if (Math.abs(dx) > 0.2) model.facing = dx < 0 ? "left" : "right";
           else if (dz > 0.2) model.facing = "left";
@@ -1358,9 +1359,9 @@ export function createWorld(host: HTMLElement, simulation: Simulation, variant: 
           model.mugSteam.visible = index < simulation.progress.capacity && agent.state === "idle" && !seated;
           model.mugSteam.position.x = model.facing === "left" ? -0.35 : 0.35;
         }
-        const pose: keyof AgentArt = agent.state === "working" ? "working" :
-          agent.state === "idle" ? seated ? "sitting" : "coffee" :
-          !reducedMotion && Math.sin(animationTime * 8 + index) > 0 ? "stepA" : "stepB";
+        const pose: keyof AgentArt = seated ? "sitting" : agent.state === "working" ? "working" :
+          agent.state === "idle" ? "coffee" :
+          (isLive || !reducedMotion) && Math.sin(animationTime * 8 + index) > 0 ? "stepA" : "stepB";
         const frame = model.frames[pose][model.facing];
         if (frame !== (model.figure.material as THREE.MeshStandardMaterial).map) {
           (model.figure.material as THREE.MeshStandardMaterial).map = frame;
@@ -1373,7 +1374,9 @@ export function createWorld(host: HTMLElement, simulation: Simulation, variant: 
         speck.position.y = 2.2 + (reducedMotion ? 0 : Math.sin(animationTime * 1.2 + i * 2.1) * 0.15);
         speck.visible = busy || i % 3 === 0;
       });
-      if (focusIndex !== null && focusIndex < simulation.progress.capacity) {
+      if (focusIndex !== null && focusIndex < simulation.progress.capacity &&
+        simulation.agents[focusIndex].x < 50 &&
+        !(reducedMotion && (simulation.agents[focusIndex].arriving || simulation.agents[focusIndex].route.length))) {
         const agent = simulation.agents[focusIndex];
         const easing = reducedMotion ? 1 : 1 - Math.exp(-frameDelta * 7);
         panX = THREE.MathUtils.lerp(panX, THREE.MathUtils.clamp(agent.x + 1.15, isLive ? -7.8 : -5.5, isLive ? 7.8 : 5.5), easing);

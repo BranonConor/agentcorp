@@ -95,9 +95,12 @@ The gear menu contains exactly Dark Mode, Reduced Motion, Auto Start and Chat
 Bubbles as native-checkbox-backed slide switches. Space or Enter toggles a
 focused switch; row labels are clickable. It supports keyboard focus,
 Escape/outside-click dismissal, and a viewport-bounded popover. The popover has
-its own opaque deep-green surface and fallback colors rather than depending
-on `.live-shell` variables across the body portal. Contrast checks parse both
-source and emitted CSS: labels exceed 4.5:1 and borders/focus exceed 3:1.
+the office's shared light/dark palette applied directly to the body portal,
+with an opaque panel and readable fallback colors. Enabled switches stay green;
+off tracks, text, focus and error colors adapt to the selected office theme.
+Theme colors change immediately without animating unrelated switch thumbs.
+Contrast checks parse both source and emitted CSS: labels exceed 4.5:1 and
+borders/focus exceed 3:1 in both themes.
 Thumb transitions follow effective reduced motion. Reduced Motion defaults to the OS
 `prefers-reduced-motion` setting; existing `system/reduced/full` values remain
 valid, and toggling saves `reduced` or `full`. Reduced mode keeps agents visible

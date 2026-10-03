@@ -3,9 +3,7 @@
   background: var(--office-canvas-bg);
 }
 
-.live-shell {
-  --office-inset: 10px;
-  --sans: "Inter", "SF Pro Text", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+.live-shell, .office-settings-popover {
   --office-surface: #f8eeddf2;
   --office-panel: #f8efdf;
   --office-muted: #eee2cf;
@@ -20,13 +18,18 @@
   --office-warning-bg: #f3dbd1;
   --office-assistant-bubble: #f1e6d4;
   --office-shadow: #3b332b36;
+}
+.live-shell {
+  --office-inset: 10px;
+  --sans: "Inter", "SF Pro Text", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
   color: var(--office-text);
   font-family: var(--sans);
   background: var(--office-canvas-bg);
 }
 
 :root[data-office-theme="dark"] { color-scheme: dark; --office-canvas-bg: #0d202b; }
-:root[data-office-theme="dark"] .live-shell {
+:root[data-office-theme="dark"] .live-shell,
+:root[data-office-theme="dark"] .office-settings-popover {
   --office-surface: #132a34f2;
   --office-panel: #192f3a;
   --office-muted: #25414c;

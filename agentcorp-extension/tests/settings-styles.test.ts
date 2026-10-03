@@ -45,38 +45,52 @@ for (const [name, css] of [["source import order", source], ["actual packaged st
     const local = declarations(css, ".office-settings-popover .settings-popover-content");
     assert.equal(local.padding, "8px 12px");
     assert.equal(declarations(css, ".office-settings-popover .settings-popover-content > :last-child")["margin-bottom"], "0");
-    // Repeat without inherited/local custom properties: critical colors must still resolve, not inherit app purple.
-    for (const variables of [local, {}]) {
-      const background = resolveColor(panel.background, variables);
-      const row = declarations(css, ".office-settings-popover .settings-switch-row");
-      const foreground = resolveColor(row.color, variables);
-      const hover = resolveColor(declarations(css, ".office-settings-popover .settings-switch-row:hover").background, variables);
-      const helper = resolveColor(declarations(css, ".office-settings-popover p").color, variables);
-      const disabled = resolveColor(declarations(css, '.office-settings-popover .settings-controls[aria-busy="false"] .settings-switch-row[data-disabled="true"]').color, variables);
-      const error = resolveColor(declarations(css, '.office-settings-popover [role="alert"]').color, variables);
-      for (const text of [foreground, helper, disabled, error]) {
-        for (const surface of [background, hover]) assert.ok(contrast(text, surface) >= 4.5, `${text} on ${surface}: ${contrast(text, surface)}`);
+    assert.equal(panel["color-scheme"], undefined, "Native controls inherit the selected office color scheme");
+    const backgrounds = new Set<string>();
+    for (const theme of ["light", "dark"]) {
+      const prefix = theme === "dark" ? ':root[data-office-theme="dark"] ' : "";
+      const palette = { ...panel, ...declarations(css, `${prefix}.office-settings-popover`) };
+      const office = { ...declarations(css, ".live-shell"), ...declarations(css, `${prefix}.live-shell`) };
+      for (const token of ["panel", "muted", "text", "secondary", "accent", "warning", "shadow"]) {
+        assert.equal(palette[`--office-${token}`], office[`--office-${token}`], `${theme} portal must share ${token}`);
+        assert.ok(palette[`--office-${token}`]);
       }
-      const border = resolveColor(panel.border.split(" ").at(-1)!, variables);
-      for (const theme of ["light", "dark"]) {
-        const outside = declarations(css, theme === "dark" ? ':root[data-office-theme="dark"]' : ":root")["--office-canvas-bg"];
-        assert.ok(contrast(border, outside) >= 3, `Panel boundary in ${theme}`);
-        assert.ok(contrast(border, background) >= 3);
+      const root = declarations(css, theme === "dark" ? ':root[data-office-theme="dark"]' : ":root");
+      assert.equal(root["color-scheme"], theme);
+      backgrounds.add(resolveColor(panel.background, palette));
+      // Repeat without custom properties: the fallback palette must remain readable in either office.
+      for (const variables of [{ ...palette, ...local }, {}]) {
+        const background = resolveColor(panel.background, variables);
+        const row = declarations(css, ".office-settings-popover .settings-switch-row");
+        const foreground = resolveColor(row.color, variables);
+        const hover = resolveColor(declarations(css, ".office-settings-popover .settings-switch-row:hover").background, variables);
+        const helper = resolveColor(declarations(css, ".office-settings-popover p").color, variables);
+        const disabled = resolveColor(declarations(css, '.office-settings-popover .settings-controls[aria-busy="false"] .settings-switch-row[data-disabled="true"]').color, variables);
+        const error = resolveColor(declarations(css, '.office-settings-popover [role="alert"]').color, variables);
+        for (const text of [foreground, helper, disabled, error]) {
+          for (const surface of [background, hover]) assert.ok(contrast(text, surface) >= 4.5, `${theme}: ${text} on ${surface}: ${contrast(text, surface)}`);
+        }
+        const border = resolveColor(panel.border.match(/var\(.*\)/)![0], variables);
+        assert.ok(contrast(border, root["--office-canvas-bg"]) >= 3, `Panel boundary in ${theme}`);
+        assert.ok(contrast(border, background) >= 3, `Panel inner boundary in ${theme}`);
+        const track = declarations(css, ".office-settings-popover .settings-switch-track");
+        const off = resolveColor(track.background, variables);
+        const on = resolveColor(declarations(css, ".office-settings-popover .settings-switch-input:checked + .settings-switch-track").background, variables);
+        const offThumb = resolveColor(declarations(css, ".office-settings-popover .settings-switch-track::after").background, variables);
+        const onThumb = resolveColor(declarations(css, ".office-settings-popover .settings-switch-input:checked + .settings-switch-track::after").background, variables);
+        const trackBorder = resolveColor(track.border.match(/var\(.*\)/)![0], variables);
+        assert.ok(contrast(offThumb, off) >= 3);
+        assert.ok(contrast(onThumb, on) >= 3);
+        assert.ok(contrast(on, hover) >= 3);
+        assert.ok(contrast(trackBorder, hover) >= 3);
+        const focus = declarations(css, ".office-settings-popover .settings-switch-input:focus-visible + .settings-switch-track");
+        const focusColor = resolveColor(focus.outline.match(/var\(.*\)/)![0], variables);
+        assert.ok(contrast(focusColor, hover) >= 3);
+        assert.ok(contrast(focusColor, background) >= 3);
+        assert.equal(focus["outline-offset"], "3px");
       }
-      const track = declarations(css, ".office-settings-popover .settings-switch-track");
-      const off = resolveColor(track.background, variables);
-      const on = resolveColor(declarations(css, ".office-settings-popover .settings-switch-input:checked + .settings-switch-track").background, variables);
-      const offThumb = resolveColor(declarations(css, ".office-settings-popover .settings-switch-track::after").background, variables);
-      const onThumb = resolveColor(declarations(css, ".office-settings-popover .settings-switch-input:checked + .settings-switch-track::after").background, variables);
-      assert.ok(contrast(offThumb, off) >= 3);
-      assert.ok(contrast(onThumb, on) >= 3);
-      assert.ok(contrast(on, hover) >= 3);
-      const focus = declarations(css, ".office-settings-popover .settings-switch-input:focus-visible + .settings-switch-track");
-      const focusColor = resolveColor(focus.outline.match(/var\(.*\)/)![0], variables);
-      assert.ok(contrast(focusColor, hover) >= 3);
-      assert.ok(contrast(focusColor, background) >= 3);
-      assert.equal(focus["outline-offset"], "3px");
     }
+    assert.equal(backgrounds.size, 2, "The panel surface must change with the selected theme");
   });
 
   test(`${name}: native squares are visually replaced, switch state uses position, and reduced motion disables sliding`, () => {
@@ -89,7 +103,9 @@ for (const [name, css] of [["source import order", source], ["actual packaged st
     const off = declarations(css, ".office-settings-popover .settings-switch-track::after");
     const on = declarations(css, ".office-settings-popover .settings-switch-input:checked + .settings-switch-track::after");
     assert.notEqual(off.transform, on.transform);
-    assert.match(off.transition, /transform/);
+    assert.match(off.transition, /^transform (?:140ms|0?\.14s) ease$/);
+    assert.equal(declarations(css, ".office-settings-popover .settings-switch-track").transition, undefined,
+      "Theme colors change immediately, without animating unrelated switches");
     assert.equal(declarations(css, '.office-settings-popover [data-reduced-motion="true"] .settings-switch-track').transition, "none");
     assert.equal(declarations(css, '.office-settings-popover [data-reduced-motion="true"] .settings-switch-track::after').transition, "none");
     assert.equal(declarations(css, '.office-settings-popover .settings-controls[aria-busy="false"] .settings-switch-input:disabled + .settings-switch-track')["border-style"], "dashed");

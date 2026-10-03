@@ -54,26 +54,25 @@
   width: min(280px, calc(100vw - 16px));
   max-height: calc(100dvh - 16px);
   overflow-y: auto;
-  color-scheme: dark;
-  color: #f3fff8;
-  background: #193b35;
-  border: 1px solid #6e8b79;
+  color: var(--office-text, #28322e);
+  background: var(--office-panel, #f8efdf);
+  border: 1px solid var(--office-secondary, #6e8b79);
   border-radius: 10px;
-  box-shadow: 0 10px 28px #00181066;
+  box-shadow: 0 10px 28px var(--office-shadow, #3b332b36);
   font: 600 13px/1.4 "Inter", "SF Pro Text", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
 }
 .office-settings-popover .settings-popover-content {
-  --settings-text: #f3fff8;
-  --settings-muted: #c7dfd1;
-  --settings-disabled: #b8cfbf;
-  --settings-hover: #284d47;
-  --settings-focus: #dcffd4;
-  --settings-track-off: #284d47;
-  --settings-track-on: #9edbbb;
-  --settings-track-border: #8fbaa5;
-  --settings-thumb-off: #edf8f2;
-  --settings-thumb-on: #14372e;
-  --settings-error: #ffcfb5;
+  --settings-text: var(--office-text, #28322e);
+  --settings-muted: var(--office-secondary, #52615a);
+  --settings-disabled: var(--office-secondary, #52615a);
+  --settings-hover: var(--office-muted, #eee2cf);
+  --settings-focus: var(--office-accent, #245b50);
+  --settings-track-off: var(--office-muted, #eee2cf);
+  --settings-track-on: var(--office-accent, #245b50);
+  --settings-track-border: var(--office-secondary, #52615a);
+  --settings-thumb-off: var(--office-secondary, #52615a);
+  --settings-thumb-on: var(--office-panel, #f8efdf);
+  --settings-error: var(--office-warning, #873f43);
   padding: 8px 12px;
 }
 .office-settings-popover .settings-switch-row {
@@ -84,12 +83,12 @@
   min-height: 44px;
   padding: 10px 6px;
   border-radius: 6px;
-  color: var(--settings-text, #f3fff8);
+  color: var(--settings-text, #28322e);
   cursor: pointer;
 }
-.office-settings-popover .settings-switch-row:hover { background: var(--settings-hover, #284d47); }
+.office-settings-popover .settings-switch-row:hover { background: var(--settings-hover, #eee2cf); }
 .office-settings-popover .settings-controls[aria-busy="false"] .settings-switch-row[data-disabled="true"] {
-  color: var(--settings-disabled, #b8cfbf);
+  color: var(--settings-disabled, #52615a);
   cursor: not-allowed;
 }
 .office-settings-popover .settings-switch-label { color: inherit; }
@@ -112,10 +111,9 @@
   width: 42px;
   height: 24px;
   box-sizing: border-box;
-  border: 1px solid var(--settings-track-border, #8fbaa5);
+  border: 1px solid var(--settings-track-border, #52615a);
   border-radius: 12px;
-  background: var(--settings-track-off, #284d47);
-  transition: background-color 140ms ease;
+  background: var(--settings-track-off, #eee2cf);
 }
 .office-settings-popover .settings-switch-track::after {
   content: "";
@@ -125,27 +123,27 @@
   width: 18px;
   height: 18px;
   border-radius: 50%;
-  background: var(--settings-thumb-off, #edf8f2);
+  background: var(--settings-thumb-off, #52615a);
   transform: translateX(0);
-  transition: transform 140ms ease, background-color 140ms ease;
+  transition: transform 140ms ease;
 }
-.office-settings-popover .settings-switch-input:checked + .settings-switch-track { background: var(--settings-track-on, #9edbbb); }
+.office-settings-popover .settings-switch-input:checked + .settings-switch-track { background: var(--settings-track-on, #245b50); }
 .office-settings-popover .settings-switch-input:checked + .settings-switch-track::after {
-  background: var(--settings-thumb-on, #14372e);
+  background: var(--settings-thumb-on, #f8efdf);
   transform: translateX(18px);
 }
 .office-settings-popover .settings-switch-input:focus-visible + .settings-switch-track {
-  outline: 2px solid var(--settings-focus, #dcffd4);
+  outline: 2px solid var(--settings-focus, #245b50);
   outline-offset: 3px;
 }
-.office-settings-popover .settings-controls[aria-busy="false"] .settings-switch-input:disabled + .settings-switch-track { border-style: dashed; background: #36564d; }
-.office-settings-popover .settings-controls[aria-busy="false"] .settings-switch-input:disabled + .settings-switch-track::after { background: var(--settings-thumb-off, #edf8f2); }
+.office-settings-popover .settings-controls[aria-busy="false"] .settings-switch-input:disabled + .settings-switch-track { border-style: dashed; background: var(--settings-track-off, #eee2cf); }
+.office-settings-popover .settings-controls[aria-busy="false"] .settings-switch-input:disabled + .settings-switch-track::after { background: var(--settings-thumb-off, #52615a); }
 .office-settings-popover .settings-controls[aria-busy="true"] .settings-switch-row { cursor: wait; }
 .office-settings-popover [data-reduced-motion="true"] .settings-switch-track,
 .office-settings-popover [data-reduced-motion="true"] .settings-switch-track::after { transition: none; }
-.office-settings-popover p { margin: 8px 6px; color: var(--settings-muted, #c7dfd1); font-size: 12px; font-weight: 400; line-height: 1.5; }
+.office-settings-popover p { margin: 8px 6px; color: var(--settings-muted, #52615a); font-size: 12px; font-weight: 400; line-height: 1.5; }
 .office-settings-popover .settings-popover-content > :last-child { margin-bottom: 0; }
-.office-settings-popover [role="alert"] { color: var(--settings-error, #ffcfb5); }
+.office-settings-popover [role="alert"] { color: var(--settings-error, #873f43); }
 .observer-shell .settings-toggle {
   display: grid;
   place-items: center;

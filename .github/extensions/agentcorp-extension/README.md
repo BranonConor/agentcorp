@@ -47,8 +47,10 @@ data under `$COPILOT_HOME/agentcorp-observer/artifacts/`.
 The gear menu has exactly four toggles: **Dark Mode**, **Reduced Motion**,
 **Auto Start**, and **Chat Bubbles**. Escape or clicking outside closes it.
 The controls are slide switches with clickable labels and keyboard Space/Enter
-support. The solid deep-green panel stays readable in either office theme;
-Reduced Motion also disables switch-thumb animation.
+support. The panel and switches use the office's shared light/dark palette,
+with green enabled switches and accessible contrast in both modes. Theme
+colors change immediately without animating unrelated switch thumbs.
+Reduced Motion disables switch-thumb animation.
 Pending saves block additional input without changing unrelated switches'
 appearance, including when motion transitions are re-enabled.
 Saves show no transient message or reserved status space; failures still show an error.

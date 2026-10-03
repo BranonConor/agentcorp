@@ -74,7 +74,8 @@ displaced by the 16-desk display limit does not trigger a false goodbye.
 Departing avatars are not included in the connected-session counts.
 Occasional bubbles report actual phases, not inferred task results. The gear
 button opens four toggles: **Dark Mode**, **Reduced Motion**, **Auto Start** and
-**Chat Bubbles**, presented as readable slide switches. Explicit choices persist across extension reloads and changing
+**Chat Bubbles**, presented as readable slide switches. The settings panel and
+switch colors follow the selected office theme. Explicit choices persist across extension reloads and changing
 viewer ports. Reduced motion follows the OS until explicitly toggled. Agents
 still visibly walk and their speech bubbles follow them; bobbing, decorative
 effects and smooth camera transitions are disabled. Chat Bubbles defaults on,

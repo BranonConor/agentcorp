@@ -144,7 +144,7 @@
 .office-settings-popover [data-reduced-motion="true"] .settings-switch-track,
 .office-settings-popover [data-reduced-motion="true"] .settings-switch-track::after { transition: none; }
 .office-settings-popover p { margin: 8px 6px; color: var(--settings-muted, #c7dfd1); font-size: 12px; font-weight: 400; line-height: 1.5; }
-.office-settings-popover .settings-save-status { min-height: 1.5em; }
+.office-settings-popover .settings-popover-content > :last-child { margin-bottom: 0; }
 .office-settings-popover [role="alert"] { color: var(--settings-error, #ffcfb5); }
 .observer-shell .settings-toggle {
   display: grid;

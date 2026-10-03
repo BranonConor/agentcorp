@@ -30,11 +30,10 @@ test("unknown load and pending save states disable controls rather than overwrit
   assert.match(loading, /Loading saved settings/);
   const saving = renderToStaticMarkup(createElement(SettingsControls, { ...props, saving: true }));
   assert.equal((saving.match(/disabled=""/g) ?? []).length, 4);
-  assert.match(saving, /role="status" class="settings-save-status">Saving preference/);
+  assert.doesNotMatch(saving, /Saving preference|settings-save-status|role="status"/);
   assert.match(saving, /class="settings-controls" aria-busy="true"/);
   assert.match(unknown, /class="settings-controls" aria-busy="false"/);
-  assert.match(renderToStaticMarkup(createElement(SettingsControls, props)),
-    /role="status" class="settings-save-status"><\/p>/);
+  assert.doesNotMatch(renderToStaticMarkup(createElement(SettingsControls, props)), /settings-save-status/);
 });
 
 test("gear menu exposes expansion/dialog semantics and replaces the old header/sidebar controls", async () => {

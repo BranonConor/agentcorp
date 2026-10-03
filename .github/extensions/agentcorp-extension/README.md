@@ -51,7 +51,7 @@ support. The solid deep-green panel stays readable in either office theme;
 Reduced Motion also disables switch-thumb animation.
 Pending saves block additional input without changing unrelated switches'
 appearance, including when motion transitions are re-enabled.
-Reserved saving-message space prevents the switches from shifting in short viewports.
+Saves show no transient message or reserved status space; failures still show an error.
 Dark Mode controls the existing light/dark office theme. Reduced Motion
 follows `prefers-reduced-motion` until explicitly toggled; saved
 `system/reduced/full` values remain compatible. Reduced mode keeps agents

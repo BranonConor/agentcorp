@@ -43,6 +43,8 @@ for (const [name, css] of [["source import order", source], ["actual packaged st
     assert.ok(panel.width.includes("100vw"));
     assert.equal(panel["overflow-y"], "auto");
     const local = declarations(css, ".office-settings-popover .settings-popover-content");
+    assert.equal(local.padding, "8px 12px");
+    assert.equal(declarations(css, ".office-settings-popover .settings-popover-content > :last-child")["margin-bottom"], "0");
     // Repeat without inherited/local custom properties: critical colors must still resolve, not inherit app purple.
     for (const variables of [local, {}]) {
       const background = resolveColor(panel.background, variables);
@@ -109,6 +111,5 @@ for (const [name, css] of [["source import order", source], ["actual packaged st
     });
     assert.deepEqual(declarations(css, '.office-settings-popover .settings-controls[aria-busy="true"] .settings-switch-row'),
       { cursor: "wait" });
-    assert.equal(declarations(css, ".office-settings-popover .settings-save-status")["min-height"], "1.5em");
   });
 }

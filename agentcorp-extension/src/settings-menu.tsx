@@ -41,7 +41,6 @@ export function SettingsControls({ preferences, dark, reduced, saving, error, on
         onChange={checked => onSave({ chatBubbles: checked })} />
     </div>
     <p>Auto Start applies to new sessions; this panel stays open.</p>
-    <p role="status" className="settings-save-status">{saving ? "Saving preference..." : ""}</p>
     {!preferences && !error && <p role="status">Loading saved settings...</p>}
     {error && <p role="alert">{error}</p>}
   </>;

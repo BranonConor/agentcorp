@@ -116,8 +116,8 @@ Start uses its shared reader and validation without changing panel markers.
 Preferences save only on explicit interaction; unknown/failed loads disable
 the controls and errors retain the last saved values. Pending saves block
 additional input without restyling unrelated switches or animating them when
-Reduced Motion is turned off. The saving message has reserved space so it
-does not shift the switches in short viewports. `/api/preferences`
+Reduced Motion is turned off. Saves show no transient message or reserved
+status space; failures still show an error. `/api/preferences`
 accepts only GET and same-origin PUT with a 256-byte JSON body changing exactly
 one allow-listed preference. Atomic read-modify-write updates use a process-owned
 loopback mutex: a stable port in 20000-39999 is derived from the canonical

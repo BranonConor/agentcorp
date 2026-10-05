@@ -82,6 +82,14 @@ test("standalone extension folder serves only packaged assets and sanitized loca
       { id: "before-root", phase: "idle", present: true },
     ], overflow: 0 });
     assert.doesNotMatch(JSON.stringify(live), /private-|test-owner/);
+    const presence = await (await fetch(new URL("/api/observations?presence=root&presence=missing", url))).json();
+    assert.deepEqual(presence, { ...live, presence: { root: true, missing: false } });
+    for (const query of ["presence=", "presence=..%2Fescape", "presence=root&presence=root",
+      Array.from({ length: 65 }, (_, i) => `presence=id-${i}`).join("&")]) {
+      const invalid = await fetch(new URL(`/api/observations?${query}`, url));
+      assert.equal(invalid.status, 400, query);
+      assert.equal(await invalid.text(), "Invalid presence ID list.");
+    }
     assert.deepEqual(await readdir(installed), packageFiles);
     assert.equal((await readdir(dataDir)).length, 3);
   } finally {

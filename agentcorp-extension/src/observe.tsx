@@ -3,71 +3,27 @@ import { createRoot } from "react-dom/client";
 import "../app/styles.css";
 import "../live.css";
 import "../observe.css";
-import { Simulation, initialProgress, DESKS, COFFEE_SPOTS, type Agent, type Request } from "../game/simulation";
-import { EXTRA_DESKS, LIVE_COFFEE_Z, MAX_LIVE_DESKS, MIN_LIVE_DESKS, assignLoungeSpots, routeAroundDividers } from "../game/live-layout";
-import { sampleDaylight } from "../game/lighting";
+import { Simulation, initialProgress } from "../game/simulation";
+import { MAX_LIVE_DESKS, MIN_LIVE_DESKS } from "../game/live-layout";
+import { createOfficeClock, previewOfficeClock, sampleOfficeClock } from "../game/lighting";
 import { AGENTCORP_LETTERS, AGENTCORP_MARK, AGENTCORP_WORDMARK } from "../game/sprite-art";
 import { createWorld } from "../game/world";
-import { arrangeObservation, newAgent, type Member } from "./observation-layout";
+import { assertFreshObservation, newAgent, OBSERVATION_POLL_MS, type Member } from "./observation-layout";
+import { advanceOffice, reconcileOffice, type OfficeRoster } from "./observation-departures";
+import { updateObservationScene } from "./observation-movement";
+import { OfficeTraffic } from "../game/traffic";
+import { bubbleMatchesView, StatusBubbles, type OfficeBubble } from "./status-bubbles";
+import { parsePreferences, reducedMotion, type PreferenceUpdate, type ViewerPreferences } from "./motion-preference";
+import { SettingsMenu } from "./settings-menu";
 import { agentName, agentPersona } from "./room";
 
-type Observation = { root: string; sessions: Member[]; overflow: number };
-const desks = [...DESKS, ...EXTRA_DESKS];
-const coffee = COFFEE_SPOTS.map(({ x }) => ({ x, z: LIVE_COFFEE_Z + 0.75 }));
+type Observation = { root: string; sessions: Member[]; overflow: number; presence?: Record<string, boolean> };
 const STEP = 1 / 30;
 const themeKey = "agentcorp-harness-theme";
 const wordmarkPaths = [...AGENTCORP_WORDMARK].map((letter, index) =>
   AGENTCORP_LETTERS[letter].flatMap((row, y) =>
     [...row].flatMap((bit, x) => bit === "1" ? [`M${index * 6 + x} ${y}h1v1h-1z`] : []),
   ).join(""));
-
-function updateScene(scene: Simulation, members: Member[]) {
-  const count = Math.min(members.length, MAX_LIVE_DESKS);
-  scene.progress.capacity = count;
-  scene.requests = [];
-  const lounge = assignLoungeSpots(members.slice(MIN_LIVE_DESKS, count).map(member => member.phase === "idle"));
-  for (let index = 0; index < count; index++) {
-    const member = members[index];
-    const sprite = scene.agents[index];
-    if (!sprite) throw new Error(`Missing office agent for desk ${index + 1}`);
-    const busy = member.phase !== "idle";
-    const destination = busy ? desks[index] : index < MIN_LIVE_DESKS ? coffee[index] : lounge[index - MIN_LIVE_DESKS];
-    if (!destination) throw new Error(`Missing office destination for desk ${index + 1}`);
-    if (sprite.x === 100) { sprite.x = destination.x; sprite.z = destination.z; }
-    if (sprite.target.x !== destination.x || sprite.target.z !== destination.z) {
-      sprite.route = routeAroundDividers(sprite, destination);
-    }
-    sprite.target = { ...destination };
-    sprite.taskId = busy ? index + 1 : undefined;
-    if (busy) {
-      const status: Request["status"] = member.phase === "blocked" ? "failed" :
-        member.phase === "thinking" ? "assigned" : "working";
-      scene.requests.push({ id: index + 1, stationId: index, title: member.phase,
-        kind: "chat", status, progress: 0, reward: 0,
-        ...(status === "failed" ? { resolvedAt: scene.time } : {}) });
-    }
-  }
-}
-
-function move(scene: Simulation) {
-  for (let index = 0; index < scene.progress.capacity; index++) {
-    const sprite = scene.agents[index];
-    if (sprite.x === 100) continue;
-    const point = sprite.route[0] ?? sprite.target;
-    const distance = Math.hypot(point.x - sprite.x, point.z - sprite.z);
-    const busy = sprite.taskId !== undefined;
-    if (distance > 0.02) {
-      const step = Math.min(distance, 2.05 * STEP);
-      sprite.x += (point.x - sprite.x) / distance * step;
-      sprite.z += (point.z - sprite.z) / distance * step;
-      sprite.state = busy ? "walking" : "returning";
-    } else {
-      sprite.x = point.x; sprite.z = point.z;
-      if (sprite.route.length) sprite.route.shift();
-      sprite.state = sprite.route.length ? "returning" : busy ? "working" : "idle";
-    }
-  }
-}
 
 function Office() {
   const host = useRef<HTMLDivElement>(null);
@@ -80,20 +36,40 @@ function Office() {
   const [state, setState] = useState<Observation | null>(null);
   const [error, setError] = useState("");
   const [sceneError, setSceneError] = useState("");
-  const [themeError, setThemeError] = useState("");
+  const [navigationError, setNavigationError] = useState("");
+  const [trafficError, setTrafficError] = useState("");
+  const [preferences, setPreferences] = useState<ViewerPreferences | null>(null);
+  const [preferenceError, setPreferenceError] = useState("");
+  const [savingPreference, setSavingPreference] = useState(false);
+  const savingRef = useRef(false);
+  const [settingsOpen, setSettingsOpen] = useState(false);
+  const chatBubblesRef = useRef(true);
+  chatBubblesRef.current = preferences?.chatBubbles ?? true;
+  const [systemReduced, setSystemReduced] = useState(() => matchMedia("(prefers-reduced-motion: reduce)").matches);
+  const motionReduced = reducedMotion(preferences?.motion ?? "system", systemReduced);
+  const reducedRef = useRef(motionReduced);
+  reducedRef.current = motionReduced;
   const [selected, setSelected] = useState("");
   const [panelOpen, setPanelOpen] = useState(false);
   const [hover, setHover] = useState<{ name: string; x: number; y: number } | null>(null);
   const hoverIndex = useRef<number | null>(null);
   const hoverLabel = useRef<HTMLDivElement>(null);
-  const [previewOffset, setPreviewOffset] = useState(0);
-  const previewRef = useRef(0);
-  const [themePreference, setThemePreference] = useState<"system" | "light" | "dark">(() => {
-    const saved = localStorage.getItem(themeKey);
-    return saved === "light" || saved === "dark" ? saved : "system";
+  const farewellLabels = useRef(new Map<string, HTMLDivElement>());
+  const [bubbles, setBubbles] = useState<OfficeBubble[]>([]);
+  const [initialClock] = useState(() => createOfficeClock());
+  const clock = useRef(initialClock);
+  const [daylight, setDaylight] = useState(() => sampleOfficeClock(initialClock));
+  const [legacyTheme] = useState(() => {
+    try {
+      const saved = localStorage.getItem(themeKey);
+      return { theme: saved === "light" || saved === "dark" ? saved : "system", error: "" };
+    } catch (cause) {
+      return { theme: "system", error: `Previous theme preference unavailable: ${String(cause)}` };
+    }
   });
   const [systemDark, setSystemDark] = useState(() => matchMedia("(prefers-color-scheme: dark)").matches);
   const selectedRef = useRef("");
+  const themePreference = preferences?.theme ?? legacyTheme.theme;
   const darkTheme = themePreference === "system" ? systemDark : themePreference === "dark";
   useLayoutEffect(() => { document.documentElement.dataset.officeTheme = darkTheme ? "dark" : "light"; }, [darkTheme]);
   useLayoutEffect(() => {
@@ -110,6 +86,7 @@ function Office() {
     world.current?.focusAgent(null);
   };
   const openPanel = (opener?: HTMLButtonElement) => {
+    setSettingsOpen(false);
     panelOpener.current = opener ?? null;
     setPanelOpen(true);
   };
@@ -138,6 +115,35 @@ function Office() {
     return () => media.removeEventListener("change", update);
   }, []);
   useEffect(() => {
+    const media = matchMedia("(prefers-reduced-motion: reduce)");
+    const update = () => setSystemReduced(media.matches);
+    media.addEventListener("change", update);
+    const controller = new AbortController();
+    void fetch("/api/preferences", { cache: "no-store", signal: controller.signal })
+      .then(async response => {
+        if (!response.ok) throw new Error(await response.text());
+        return parsePreferences(await response.json());
+      }).then(saved => { if (!controller.signal.aborted) setPreferences(saved); })
+      .catch(cause => { if (!controller.signal.aborted) setPreferenceError(`Preferences unavailable: ${String(cause)}`); });
+    return () => { controller.abort(); media.removeEventListener("change", update); };
+  }, []);
+  useEffect(() => { world.current?.setReducedMotion(motionReduced); }, [motionReduced]);
+  const savePreference = async (update: PreferenceUpdate) => {
+    if (!preferences || savingRef.current) return;
+    savingRef.current = true;
+    setSavingPreference(true);
+    try {
+      const response = await fetch("/api/preferences", {
+        method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify(update),
+      });
+      if (!response.ok) throw new Error(await response.text());
+      setPreferences(parsePreferences(await response.json()));
+      setPreferenceError("");
+    } catch (cause) {
+      setPreferenceError(`Preference not saved: ${cause instanceof Error ? cause.message : String(cause)}`);
+    } finally { savingRef.current = false; setSavingPreference(false); }
+  };
+  useEffect(() => {
     if (!panelOpen) return;
     const onKeyDown = (event: KeyboardEvent) => {
       if (event.key === "Escape") {
@@ -148,19 +154,8 @@ function Office() {
     window.addEventListener("keydown", onKeyDown);
     return () => window.removeEventListener("keydown", onKeyDown);
   }, [panelOpen]);
-  const toggleTheme = () => {
-    const next = darkTheme ? "light" : "dark";
-    try {
-      localStorage.setItem(themeKey, next);
-      setThemePreference(next);
-      setThemeError("");
-    } catch (cause) {
-      setThemeError(`Theme preference could not be saved: ${cause instanceof Error ? cause.message : String(cause)}`);
-    }
-  };
   const previewLight = () => {
-    previewRef.current = (previewRef.current + 0.25) % 1;
-    setPreviewOffset(previewRef.current);
+    previewOfficeClock(clock.current);
   };
   useEffect(() => {
     if (!host.current) return;
@@ -169,6 +164,30 @@ function Office() {
     scene.progress.capacity = 0;
     scene.progress.context = false;
     scene.progress.workflow = 1;
+    let roster: OfficeRoster = { members: [], agents: [], departures: [] };
+    const traffic = new OfficeTraffic();
+    const statusBubbles = new StatusBubbles();
+    let bubbleSignature = "";
+    const syncBubbles = () => {
+      const current = statusBubbles.update(roster, scene.time, chatBubblesRef.current);
+      const byId = new Map(current.map(bubble => [bubble.id, bubble]));
+      for (const [id, label] of farewellLabels.current) {
+        const bubble = byId.get(id);
+        if (!bubble || !bubbleMatchesView(bubble, roster, { id, kind: label.dataset.bubbleKind, text: label.textContent })) {
+          label.hidden = true;
+        }
+      }
+      const signature = current.map(bubble => `${bubble.id}/${bubble.kind}/${bubble.text}/${bubble.index}`).join("|");
+      if (signature !== bubbleSignature) { bubbleSignature = signature; setBubbles(current); }
+      return current;
+    };
+    const syncRoster = () => {
+      scene.agents = roster.agents;
+      world.current?.capturePositions();
+      [...roster.members, ...roster.departures.map(departure => departure.member)]
+        .forEach((member, index) => world.current?.setAgentPersona(index, agentPersona(member.id)));
+      syncBubbles();
+    };
     try {
       world.current = createWorld(host.current, scene, "live", {
         onAgentHover(index) {
@@ -198,6 +217,7 @@ function Office() {
           setHover(null);
         },
       });
+      world.current.setReducedMotion(reducedRef.current);
     } catch (cause) {
       host.current.classList.add("static-fallback");
       setSceneError(`3D office unavailable: ${cause instanceof Error ? cause.message : String(cause)}`);
@@ -207,29 +227,37 @@ function Office() {
     const refresh = async () => {
       if (refreshing) return;
       refreshing = true;
+      const startedAt = performance.now();
       try {
-        const response = await fetch("/api/observations", { cache: "no-store" });
+        const query = new URLSearchParams();
+        [...roster.members, ...roster.departures.map(departure => departure.member)]
+          .forEach(member => query.append("presence", member.id));
+        const response = await fetch(`/api/observations?${query}`, { cache: "no-store" });
         if (!response.ok) throw new Error(`Office returned ${response.status}`);
         const next = await response.json() as Observation;
         if (!Array.isArray(next.sessions) || next.sessions.length > MAX_LIVE_DESKS ||
           !Number.isSafeInteger(next.overflow) || next.overflow < 0) throw new Error("Invalid office snapshot");
         if (!active) return;
+        assertFreshObservation(startedAt, performance.now());
         const hoveredId = hoverIndex.current === null ? "" : members.current[hoverIndex.current]?.id ?? "";
-        const arranged = arrangeObservation(members.current, scene.agents, next.sessions);
-        members.current = arranged.members;
-        scene.agents = arranged.agents;
-        updateScene(scene, arranged.members);
-        world.current?.capturePositions();
-        arranged.members.forEach((member, index) => world.current?.setAgentPersona(index, agentPersona(member.id)));
+        roster = reconcileOffice(roster, next.sessions, next.presence);
+        members.current = roster.members;
+        scene.agents = roster.agents;
+        const routeErrors = updateObservationScene(scene, roster.members);
+        if (roster.departures.some(departure => departure.agent.navigationBlocked)) {
+          routeErrors.push("No safe exit route; departing agents stopped. Retrying on the next office update.");
+        }
+        setNavigationError(routeErrors.join(" "));
+        syncRoster();
         setState(next);
         setError("");
-        const index = arranged.members.findIndex(member => member.id === selectedRef.current);
+        const index = roster.members.findIndex(member => member.id === selectedRef.current);
         if (selectedRef.current && index < 0) {
           const selectedRowHadFocus = document.activeElement?.matches('.observer-agent-row[aria-pressed="true"]');
           clearSelection();
           if (selectedRowHadFocus) closeButton.current?.focus();
         } else world.current?.focusAgent(index >= 0 ? index : null);
-        const hoveredIndex = arranged.members.findIndex(member => member.id === hoveredId);
+        const hoveredIndex = roster.members.findIndex(member => member.id === hoveredId);
         hoverIndex.current = hoveredId && hoveredIndex >= 0 ? hoveredIndex : null;
         if (hoverIndex.current === null) setHover(null);
         else {
@@ -243,10 +271,11 @@ function Office() {
       }
     };
     void refresh();
-    const poll = window.setInterval(() => void refresh(), 3_000);
+    const poll = window.setInterval(() => void refresh(), OBSERVATION_POLL_MS);
     let frameId = 0;
     let last = performance.now();
     let remainder = 0;
+    let clockLabel = "";
     const frame = (now: number) => {
       remainder += Math.min((now - last) / 1000, 0.2);
       last = now;
@@ -254,10 +283,30 @@ function Office() {
       if (!document.hidden) {
         while (remainder >= STEP) {
           world.current?.capturePositions();
-          move(scene); scene.time += STEP;
+          if (advanceOffice(roster, traffic, STEP, reducedRef.current)) syncRoster();
+          scene.time += STEP;
           remainder -= STEP; advanced = true;
         }
-        world.current?.render(now / 1000, previewRef.current, remainder / STEP, advanced);
+        const currentDaylight = sampleOfficeClock(clock.current);
+        if (currentDaylight.label !== clockLabel) {
+          clockLabel = currentDaylight.label;
+          setDaylight(currentDaylight);
+        }
+        world.current?.render(now / 1000, clock.current.previewSteps / 4, remainder / STEP, advanced, currentDaylight);
+        const activeBubbles = syncBubbles();
+        setTrafficError(traffic.error);
+        activeBubbles.forEach(bubble => {
+          const label = farewellLabels.current.get(bubble.id);
+          if (!label || !bubbleMatchesView(bubble, roster,
+            { id: bubble.id, kind: label.dataset.bubbleKind, text: label.textContent })) return;
+          const point = world.current?.projectAgent(bubble.index);
+          label.hidden = !point;
+          if (point) {
+            const halfWidth = label.offsetWidth / 2 + 8;
+            label.style.left = `${Math.max(halfWidth, Math.min((host.current?.clientWidth ?? 0) - halfWidth, point.x))}px`;
+            label.style.top = `${Math.max(label.offsetHeight + 24, point.y)}px`;
+          }
+        });
         if (hoverIndex.current !== null && hoverLabel.current) {
           const point = world.current?.projectAgent(hoverIndex.current);
           hoverLabel.current.hidden = !point;
@@ -285,11 +334,11 @@ function Office() {
   const blocked = sessions.filter(member => member.phase === "blocked").length;
   const overflow = state?.overflow ?? 0;
   const moreLabel = `${overflow} more session${overflow === 1 ? "" : "s"}`;
-  const visualError = error || sceneError || themeError;
+  const themeError = preferences?.theme ? "" : legacyTheme.error;
+  const visualError = error || sceneError || navigationError || trafficError || preferenceError || themeError;
   const connected = !error && state !== null;
   const statusKind = visualError ? "error" : !state || !live ? "connecting" : "online";
   const statusLabel = visualError ? "Error" : !state ? "Connecting" : live ? "Live" : "No sessions";
-  const daylight = sampleDaylight(0, previewOffset);
   return <main className={`shell live-shell observer-shell ${panelOpen ? "activity-visible" : ""}`}>
     <header className="topbar">
       <div className="identity">
@@ -307,17 +356,15 @@ function Office() {
         </svg>
         <div className="identity-controls">
           <button type="button" className="time-preview" onClick={previewLight}
-            title="Preview the next six hours of decorative office lighting"
-            aria-label={`Office lighting ${daylight.label}; preview next six hours`}>
+            title="Preview the next six hours; after four previews, return to local time"
+            aria-label={`Office lighting ${daylight.label}; preview next six hours, fourth preview resets to local time`}>
             <span className="time-icon" aria-hidden="true">{daylight.sun > 1 ? "☼" : daylight.moon > 0.2 ? "☾" : "◑"}</span>
             <span className="time-value">{daylight.label}</span>
             <span className="time-arrow" aria-hidden="true">↻</span>
           </button>
-          <button type="button" className="theme-toggle" onClick={toggleTheme}
-            aria-label={`Switch to ${darkTheme ? "light" : "dark"} theme`}
-            title={`HUD appearance: ${themePreference === "system" ? "system" : themePreference}`}>
-            <span aria-hidden="true">{darkTheme ? "☼" : "☾"}</span>
-          </button>
+          <SettingsMenu open={settingsOpen} onOpenChange={setSettingsOpen} preferences={preferences}
+            dark={darkTheme} reduced={motionReduced} saving={savingPreference}
+            error={preferenceError || themeError} onSave={update => void savePreference(update)} />
         </div>
       </div>
       <div className="top-stats" aria-hidden={panelOpen} inert={panelOpen}>
@@ -333,6 +380,16 @@ function Office() {
       <section className="world-panel" aria-label="Live Copilot office">
         <div className="world-host" ref={host}>
           {hover && <div ref={hoverLabel} className="agent-hover" style={{ left: hover.x, top: hover.y }}>{hover.name}</div>}
+          {(preferences?.chatBubbles ?? true) && bubbles.map(bubble => <div key={bubble.id}
+            ref={element => {
+              if (element) farewellLabels.current.set(bubble.id, element);
+              else farewellLabels.current.delete(bubble.id);
+            }}
+            className="agent-hover agent-farewell" role="status"
+            data-bubble-kind={bubble.kind}
+            aria-label={`${agentName(bubble.id)} says: ${bubble.text}`}>
+            {bubble.text}
+          </div>)}
           <div className="world-callout live-callout" role="status" aria-live="polite">
             <button type="button" className={`office-status-link sdk-${statusKind}`}
               aria-label={`Observation status: ${statusLabel}. Open office overview`}
@@ -371,6 +428,11 @@ function Office() {
               <div className="activity-row-heading"><strong>3D scene</strong>
                 <span className="activity-tag activity-tag-warning">Unavailable</span></div>
               <p>{sceneError} Session observations remain available below.</p>
+            </div>}
+            {(navigationError || trafficError) && <div className="activity-row">
+              <div className="activity-row-heading"><strong>Office movement</strong>
+                <span className="activity-tag activity-tag-warning">Stopped</span></div>
+              <p role="alert">{navigationError || trafficError}</p>
             </div>}
             {themeError && <div className="activity-row">
               <div className="activity-row-heading"><strong>HUD preference</strong>

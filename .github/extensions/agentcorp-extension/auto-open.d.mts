@@ -11,6 +11,8 @@ export interface AutoOpenSession {
 }
 
 export function readSettings(path?: string): Promise<{ autoOpen: boolean }>;
+export const settingsPath: string;
+export function validateSettings(settings: unknown): { autoOpen: boolean };
 export function autoOpenCanvas(session: AutoOpenSession, path?: string): Promise<
   "unsupported" | "disabled" | "already-handled" | "already-open" | "opened"
 >;

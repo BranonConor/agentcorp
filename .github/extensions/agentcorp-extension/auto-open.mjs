@@ -3,10 +3,19 @@ import { homedir } from "node:os";
 import { join } from "node:path";
 import { validId } from "./observations.mjs";
 
-const settingsPath = join(
+export const settingsPath = join(
   process.env.COPILOT_HOME || join(homedir(), ".copilot"),
   "extensions", "agentcorp-extension", "artifacts", "settings.json",
 );
+
+export function validateSettings(settings) {
+  if (!settings || typeof settings !== "object" || Array.isArray(settings) ||
+    Object.keys(settings).some(key => key !== "autoOpen") ||
+    (Object.hasOwn(settings, "autoOpen") && typeof settings.autoOpen !== "boolean")) {
+    throw new Error('AgentCorp settings must be an object with an optional boolean "autoOpen".');
+  }
+  return { autoOpen: settings.autoOpen ?? false };
+}
 
 export async function readSettings(path = settingsPath) {
   let text;
@@ -22,12 +31,7 @@ export async function readSettings(path = settingsPath) {
   } catch (error) {
     throw new Error(`Invalid JSON in AgentCorp settings at ${path}.`, { cause: error });
   }
-  if (!settings || typeof settings !== "object" || Array.isArray(settings) ||
-    Object.keys(settings).some(key => key !== "autoOpen") ||
-    (Object.hasOwn(settings, "autoOpen") && typeof settings.autoOpen !== "boolean")) {
-    throw new Error(`AgentCorp settings at ${path} must be an object with an optional boolean "autoOpen".`);
-  }
-  return { autoOpen: settings.autoOpen ?? false };
+  return validateSettings(settings);
 }
 
 export async function autoOpenCanvas(session, path = settingsPath) {

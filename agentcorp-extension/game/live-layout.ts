@@ -1,15 +1,34 @@
-import type { Point } from "./simulation";
+import { DESKS, COFFEE_SPOTS, type Point } from "./simulation";
 
 export const LIVE_ROOM = { halfWidth: 9.4, back: -6.4, front: 7.2, windowY: 1.72 };
+export const LIVE_FLOOR = { width: LIVE_ROOM.halfWidth * 2 - 0.18, depth: LIVE_ROOM.front - LIVE_ROOM.back - 0.18 };
 export const LIVE_COFFEE_Z = -4.75;
-export const LIVE_COFFEE_COUNTER = { width: 3.12, height: 1.82, y: 0.92 };
+export const LIVE_COFFEE_COUNTER = { width: 3.12, height: 1.82, y: 0.92, depth: 0.62 };
+export const LIVE_COFFEE_SPOTS = COFFEE_SPOTS.map(({ x }) => ({ x, z: LIVE_COFFEE_Z + 0.75 }));
 export const LIVE_DIVIDER_X = 3.45;
 export const LIVE_DIVIDER_START_Z = 0.25;
 export const LIVE_DIVIDER_END_Z = 5.15;
-export const LIVE_AISLE_Z = -1.05;
+export const LIVE_DIVIDER_WIDTH = 0.3;
+export const LIVE_LAMP = { width: 0.55, depth: 0.55, z: LIVE_DIVIDER_START_Z - 0.25 };
+export const LIVE_BOOKCASE = { width: 1.38, depth: 0.3, z: LIVE_ROOM.back + 0.32 };
+export const LIVE_BOOKCASE_XS = [-8.3, 8.3] as const;
 export const LIVE_DIVIDER_PLANTS = [
   { x: -3, z: 5.55, size: 1.1 }, { x: 3, z: 5.55, size: 1.1 },
 ] as const;
+export const LIVE_PLANTS = [
+  { x: -6.6, z: LIVE_ROOM.back + 1.04, size: 1 }, { x: -4.4, z: LIVE_ROOM.back + 1.08, size: 0.84 },
+  { x: 4.4, z: LIVE_ROOM.back + 1.08, size: 0.84 }, { x: 6.6, z: LIVE_ROOM.back + 1.04, size: 1 },
+  ...LIVE_DIVIDER_PLANTS,
+  { x: -8.2, z: 4.95, size: 0.92 }, { x: 8.2, z: 4.95, size: 0.92 },
+] as const;
+export const PLANT_FOOTPRINT = { width: 0.62, depth: 0.42 };
+export const LIVE_STACKS = [{ x: -6.9, z: -3.5 }, { x: -6.55, z: -3.5 }] as const;
+export const STACK_FOOTPRINT = { width: 0.65, depth: 0.4 };
+export const DESK_SHAPE = { width: 1.55, height: 1.23, y: 0.58, z: -0.56, depth: 0.52 };
+export const CHAIR_SHAPE = { width: 0.66, height: 0.94, y: 0.49, x: 0.35, z: 0.37, depth: 0.32 };
+export const AGENT_SHADOW = { width: 0.6, depth: 0.38 };
+// The opaque 22/32-pixel body in the 0.95-wide sprite, plus clearance.
+export const LIVE_AGENT_CLEARANCE = { x: 0.35, z: AGENT_SHADOW.depth / 2 + 0.01 };
 
 export const EXTRA_DESKS: readonly Point[] = [
   { x: -4.7, z: -0.35 }, { x: 4.7, z: -0.35 },
@@ -23,10 +42,16 @@ export const EXTRA_DESKS: readonly Point[] = [
 export const MIN_LIVE_DESKS = 4;
 export const MIN_VISIBLE_LIVE_DESKS = MIN_LIVE_DESKS + 4;
 export const MAX_LIVE_DESKS = MIN_LIVE_DESKS + EXTRA_DESKS.length;
+export const LIVE_DESKS: readonly Point[] = [...DESKS, ...EXTRA_DESKS];
 export const LIVE_RUG_X = 6.1;
 export const LIVE_LOUNGE_Z = 5.65;
 export const LIVE_LOUNGE_SOFA_X = LIVE_RUG_X;
 export const LIVE_LOUNGE_SEATS_PER_WING = 3;
+export const LIVE_SOFA = {
+  width: 3.08, height: 1.12, y: 0.56, backZ: LIVE_LOUNGE_Z - 0.23,
+  frontZ: LIVE_LOUNGE_Z + 0.17, footprintZ: LIVE_LOUNGE_Z - 0.08, depth: 0.72,
+};
+export const LIVE_LOUNGE_APPROACH_Z = LIVE_SOFA.footprintZ + LIVE_SOFA.depth / 2 + LIVE_AGENT_CLEARANCE.z + 0.02;
 const loungePositions: readonly Point[] = [
   { x: LIVE_LOUNGE_SOFA_X + 0.92, z: LIVE_LOUNGE_Z },
   { x: LIVE_LOUNGE_SOFA_X, z: LIVE_LOUNGE_Z },
@@ -54,6 +79,10 @@ export function isLoungeSeat(point: Point): boolean {
     index < LIVE_LOUNGE_SEATS_PER_WING * 2 && seat.x === point.x && seat.z === point.z);
 }
 
+export function walkingDestination(destination: Point): Point {
+  return isLoungeSeat(destination) ? { x: destination.x, z: LIVE_LOUNGE_APPROACH_Z } : { ...destination };
+}
+
 const DESK_PROPS = ["plant", "mug", "lamp", "books", "notes", "headphones"] as const;
 export type DeskProp = typeof DESK_PROPS[number];
 
@@ -66,14 +95,4 @@ export function deskPropsFor(index: number): readonly [DeskProp, DeskProp] {
 
 export function liveDeskCount(workers: number): number {
   return Math.max(MIN_VISIBLE_LIVE_DESKS, Math.min(MAX_LIVE_DESKS, workers));
-}
-
-// Cross between desk sections through the open aisle, not through a divider.
-export function routeAroundDividers(from: Point, to: Point): Point[] {
-  const section = (x: number) => x < -LIVE_DIVIDER_X ? -1 : x > LIVE_DIVIDER_X ? 1 : 0;
-  if (section(from.x) === section(to.x)) return [];
-  return [
-    { x: from.x, z: LIVE_AISLE_Z },
-    { x: to.x, z: LIVE_AISLE_Z },
-  ];
 }

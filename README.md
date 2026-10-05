@@ -62,6 +62,31 @@ device's `COPILOT_HOME`, in
 Older membership records and `extensions/agentcorp-observer/artifacts` files
 are left intact but are not used for live discovery.
 
+Agents walk around desks, chairs, sofas and other solid furniture, using
+the open aisles rather than crossing through objects. New agents enter from
+the lower corners; agents yield in occupied aisles and ease into turns.
+They say "Hello!" once when first entering the current viewer.
+When a previously visible session disconnects, its avatar waits through a
+four-second reconnect grace period and is confirmed still missing, says
+goodbye and walks to a front
+corner exit before disappearing. A reconnect cancels the departure; being
+displaced by the 16-desk display limit does not trigger a false goodbye.
+Departing avatars are not included in the connected-session counts.
+Occasional bubbles report actual phases, not inferred task results. The gear
+button opens four toggles: **Dark Mode**, **Reduced Motion**, **Auto Start** and
+**Chat Bubbles**, presented as readable slide switches. The settings panel and
+switch colors follow the selected office theme. Explicit choices persist across extension reloads and changing
+viewer ports. Reduced motion follows the OS until explicitly toggled. Agents
+still visibly walk and their speech bubbles follow them; bobbing, decorative
+effects and smooth camera transitions are disabled. Chat Bubbles defaults on,
+and switching it off hides speech without interrupting
+arrivals, reconnect grace or departures. Auto Start affects future session
+startup, not the currently open panel.
+The observer clock and lighting continuously follow local computer time,
+including after sleep or backgrounding. Six-hour previews are temporary offsets
+from real time; the fourth preview returns to current local time. Agent movement
+keeps its normal speed.
+
 Click an agent in the office or select its full Observed agents row to focus
 the camera. Rows work with Enter and Space; selecting the same row again
 clears focus. Dragging or scrolling the camera, pressing Escape, closing

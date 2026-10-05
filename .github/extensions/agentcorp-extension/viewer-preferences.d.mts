@@ -1,0 +1,10 @@
+export type MotionPreference = "system" | "reduced" | "full";
+export type ViewerSettings = { motion: MotionPreference; theme?: "system" | "light" | "dark"; chatBubbles: boolean };
+export type ViewerPreferences = ViewerSettings & { autoOpen: boolean };
+export type PreferenceUpdate = { motion: MotionPreference } | { theme: "system" | "light" | "dark" } | { chatBubbles: boolean } | { autoOpen: boolean };
+export const motionPath: string;
+export function validateMotion(value: unknown): ViewerSettings;
+export function readMotion(path?: string): Promise<ViewerSettings>;
+export function readPreferences(): Promise<ViewerPreferences>;
+export function validatePreferenceUpdate(value: unknown): PreferenceUpdate;
+export function savePreference(value: unknown): Promise<ViewerPreferences>;

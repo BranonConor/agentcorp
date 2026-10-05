@@ -47,6 +47,136 @@
 .observer-shell .observer-agent-row > .activity-tag { align-self: center; }
 .observer-shell .status-idle { background: var(--office-accent-bg); color: var(--office-accent); }
 .observer-shell .world-callout.live-callout { z-index: 3; }
+.office-settings-popover {
+  position: fixed;
+  z-index: 30;
+  box-sizing: border-box;
+  width: min(280px, calc(100vw - 16px));
+  max-height: calc(100dvh - 16px);
+  overflow-y: auto;
+  color: var(--office-text, #28322e);
+  background: var(--office-panel, #f8efdf);
+  border: 1px solid var(--office-secondary, #6e8b79);
+  border-radius: 10px;
+  box-shadow: 0 10px 28px var(--office-shadow, #3b332b36);
+  font: 600 13px/1.4 "Inter", "SF Pro Text", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+}
+.office-settings-popover .settings-popover-content {
+  --settings-text: var(--office-text, #28322e);
+  --settings-muted: var(--office-secondary, #52615a);
+  --settings-disabled: var(--office-secondary, #52615a);
+  --settings-hover: var(--office-muted, #eee2cf);
+  --settings-focus: var(--office-accent, #245b50);
+  --settings-track-off: var(--office-muted, #eee2cf);
+  --settings-track-on: var(--office-accent, #245b50);
+  --settings-track-border: var(--office-secondary, #52615a);
+  --settings-thumb-off: var(--office-secondary, #52615a);
+  --settings-thumb-on: var(--office-panel, #f8efdf);
+  --settings-error: var(--office-warning, #873f43);
+  padding: 8px 12px;
+}
+.office-settings-popover .settings-switch-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  min-height: 44px;
+  padding: 10px 6px;
+  border-radius: 6px;
+  color: var(--settings-text, #28322e);
+  cursor: pointer;
+}
+.office-settings-popover .settings-switch-row:hover { background: var(--settings-hover, #eee2cf); }
+.office-settings-popover .settings-controls[aria-busy="false"] .settings-switch-row[data-disabled="true"] {
+  color: var(--settings-disabled, #52615a);
+  cursor: not-allowed;
+}
+.office-settings-popover .settings-switch-label { color: inherit; }
+.office-settings-popover .settings-switch-control { position: relative; flex: 0 0 42px; width: 42px; height: 24px; }
+.office-settings-popover .settings-switch-input {
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  width: 100%;
+  height: 100%;
+  margin: 0;
+  opacity: 0;
+  appearance: none;
+  -webkit-appearance: none;
+  cursor: inherit;
+}
+.office-settings-popover .settings-switch-track {
+  display: block;
+  position: relative;
+  width: 42px;
+  height: 24px;
+  box-sizing: border-box;
+  border: 1px solid var(--settings-track-border, #52615a);
+  border-radius: 12px;
+  background: var(--settings-track-off, #eee2cf);
+}
+.office-settings-popover .settings-switch-track::after {
+  content: "";
+  position: absolute;
+  left: 2px;
+  top: 2px;
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  background: var(--settings-thumb-off, #52615a);
+  transform: translateX(0);
+  transition: transform 140ms ease;
+}
+.office-settings-popover .settings-switch-input:checked + .settings-switch-track { background: var(--settings-track-on, #245b50); }
+.office-settings-popover .settings-switch-input:checked + .settings-switch-track::after {
+  background: var(--settings-thumb-on, #f8efdf);
+  transform: translateX(18px);
+}
+.office-settings-popover .settings-switch-input:focus-visible + .settings-switch-track {
+  outline: 2px solid var(--settings-focus, #245b50);
+  outline-offset: 3px;
+}
+.office-settings-popover .settings-controls[aria-busy="false"] .settings-switch-input:disabled + .settings-switch-track { border-style: dashed; background: var(--settings-track-off, #eee2cf); }
+.office-settings-popover .settings-controls[aria-busy="false"] .settings-switch-input:disabled + .settings-switch-track::after { background: var(--settings-thumb-off, #52615a); }
+.office-settings-popover .settings-controls[aria-busy="true"] .settings-switch-row { cursor: wait; }
+.office-settings-popover [data-reduced-motion="true"] .settings-switch-track,
+.office-settings-popover [data-reduced-motion="true"] .settings-switch-track::after { transition: none; }
+.office-settings-popover p { margin: 8px 6px; color: var(--settings-muted, #52615a); font-size: 12px; font-weight: 400; line-height: 1.5; }
+.office-settings-popover .settings-popover-content > :last-child { margin-bottom: 0; }
+.office-settings-popover [role="alert"] { color: var(--settings-error, #873f43); }
+.observer-shell .settings-toggle {
+  display: grid;
+  place-items: center;
+  flex: 0 0 28px;
+  width: 28px;
+  height: 28px;
+  min-width: 28px;
+  padding: 0;
+  line-height: 0;
+}
+.observer-shell .settings-toggle svg { display: block; width: 20px; height: 20px; }
+.observer-shell .settings-toggle:focus-visible { outline: 2px solid var(--office-accent, #245b50); outline-offset: 3px; }
+.observer-shell .agent-farewell {
+  padding: 9px 12px;
+  border-radius: 12px;
+  font-size: 13px;
+  white-space: normal;
+  width: max-content;
+  max-width: min(180px, calc(100% - 32px));
+  text-align: center;
+}
+.observer-shell .agent-farewell::after {
+  content: "";
+  position: absolute;
+  left: calc(50% - 5px);
+  bottom: -6px;
+  width: 9px;
+  height: 9px;
+  background: var(--office-panel);
+  border-right: 1px solid var(--office-border);
+  border-bottom: 1px solid var(--office-border);
+  transform: rotate(45deg);
+}
 .observer-shell button:focus-visible { outline: 2px solid var(--office-accent); outline-offset: 2px; }
 @media (prefers-reduced-motion: reduce) {
   .observer-shell:not(.activity-visible) .top-stats { transition: none; }

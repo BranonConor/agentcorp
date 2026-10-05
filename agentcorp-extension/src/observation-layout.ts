@@ -2,10 +2,18 @@ import type { Agent } from "../game/simulation";
 
 export type Phase = "idle" | "thinking" | "tool" | "blocked";
 export type Member = { id: string; phase: Phase; present: true };
+export const OBSERVATION_POLL_MS = 3_000;
+
+export function assertFreshObservation(startedAt: number, receivedAt: number) {
+  if (!Number.isFinite(startedAt) || !Number.isFinite(receivedAt) ||
+    receivedAt < startedAt || receivedAt - startedAt > OBSERVATION_POLL_MS) {
+    throw new Error("Office snapshot arrived too late; keeping the last state until a fresh update.");
+  }
+}
 
 export function newAgent(id: number): Agent {
   return { id, state: "idle", x: 100, z: 100, target: { x: 100, z: 100 },
-    route: [], workLeft: 0, workTotal: 0, visitedContext: false };
+    route: [], workLeft: 0, workTotal: 0, visitedContext: false, arriving: true };
 }
 
 /** Keep visible agents at their desks when heartbeat priority changes. */

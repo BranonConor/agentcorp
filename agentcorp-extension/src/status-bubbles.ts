@@ -71,7 +71,7 @@ export class StatusBubbles {
       }
     });
     roster.departures.forEach((departure, index) => {
-      if (departure.graceLeft > 0 || !departure.confirmedMissing) return;
+      if (departure.graceLeft > 0 || !departure.confirmedMissing || departure.farewellLeft <= 0) return;
       bubbles.push({ id: departure.member.id, text: departure.phrase, index: roster.members.length + index,
         anchor: departure.anchor, farewell: true, kind: "departure" });
     });
